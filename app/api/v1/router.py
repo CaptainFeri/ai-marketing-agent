@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.v1 import (
     auth,
+    channels,
     health,
     packages,
     platform,
@@ -20,6 +21,7 @@ api_router.include_router(auth.router)
 api_router.include_router(tenants.router)
 api_router.include_router(workspaces.router)
 api_router.include_router(questionnaire.router)
+api_router.include_router(channels.router)
 api_router.include_router(packages.router)
 api_router.include_router(packages.topics_router)
 api_router.include_router(quota.router)

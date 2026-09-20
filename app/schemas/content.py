@@ -14,6 +14,7 @@ from app.db.enums import (
     MediaKind,
     PackageStatus,
     PipelineStep,
+    PublicationStatus,
     StepStatus,
     TopicStatus,
     VideoMode,
@@ -98,6 +99,31 @@ class MediaAssetOut(ORMModel):
 
 class MediaAssetSelect(BaseModel):
     is_selected: bool = True
+
+
+class VariantSelect(BaseModel):
+    is_selected: bool = True
+
+
+class PublicationCreate(BaseModel):
+    variant_id: uuid.UUID
+    scheduled_at: datetime
+
+
+class PublicationOut(ORMModel):
+    id: uuid.UUID
+    package_id: uuid.UUID
+    variant_id: uuid.UUID | None
+    channel: Channel
+    status: PublicationStatus
+    scheduled_at: datetime
+    published_at: datetime | None
+    external_id: str | None
+    external_url: str | None
+    attempt_count: int
+    last_error: str | None
+    operator_alerted: bool
+    created_at: datetime
 
 
 class PackageOut(ORMModel):
