@@ -84,10 +84,20 @@ class MediaAssetOut(ORMModel):
     width: int | None
     height: int | None
     duration_seconds: float | None
+    prompt: str | None
     model: str | None
     gpu_seconds: float
     is_selected: bool
     is_ai_labelled: bool
+    #: A URL the panel can load the object from. Not an ORM attribute — the
+    #: API layer fills it in from the storage backend, since generating it
+    #: means a call out to MinIO (a presigned GET) that has no business
+    #: happening inside a pydantic validator.
+    url: str | None = None
+
+
+class MediaAssetSelect(BaseModel):
+    is_selected: bool = True
 
 
 class PackageOut(ORMModel):

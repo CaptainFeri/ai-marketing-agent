@@ -80,6 +80,13 @@ def test_a_rejected_package_can_be_restarted() -> None:
 # the text pipeline order
 # --------------------------------------------------------------------------
 def test_the_pipeline_runs_in_the_documented_order() -> None:
+    """The marketizer runs inside the chain, before gate 1 — not after it.
+
+    Handoff section 3 is explicit that what gate 1 approves is "channel
+    version + visual_brief + A/B variants", and the image queue reads the
+    marketizer's visual_brief, so it has to exist before MEDIA_GENERATING can
+    be entered at all.
+    """
     order = []
     step = package_service.next_text_step(None)
     while step is not None:
@@ -92,6 +99,7 @@ def test_the_pipeline_runs_in_the_documented_order() -> None:
         PipelineStep.GEO_OPTIMIZER,
         PipelineStep.SEO_OPTIMIZER,
         PipelineStep.QA,
+        PipelineStep.MARKETIZER,
     ]
 
 
@@ -241,10 +249,20 @@ def test_rewinding_to_the_first_step_clears_the_marker() -> None:
 
 
 def test_rewinding_to_a_step_outside_the_text_line_is_left_alone() -> None:
-    """The marketizer is not part of the six-agent chain."""
+    """A step this state machine has never heard of is passed through as-is
+    rather than raising — ``rewind_to`` only special-cases members of
+    ``TEXT_PIPELINE``, and the topic planner and brief assistant are not."""
+    package = make_package(PackageStatus.DRAFTING)
+    package_service.rewind_to(package, PipelineStep.TOPIC_PLANNER)
+    assert package.current_step is PipelineStep.TOPIC_PLANNER
+
+
+def test_rewinding_to_the_marketizer_reruns_only_the_marketizer() -> None:
+    """It is now part of the chain, so it follows the same predecessor rule
+    as every other step."""
     package = make_package(PackageStatus.DRAFTING)
     package_service.rewind_to(package, PipelineStep.MARKETIZER)
-    assert package.current_step is PipelineStep.MARKETIZER
+    assert package_service.next_text_step(package.current_step) is PipelineStep.MARKETIZER
 
 
 # --------------------------------------------------------------------------

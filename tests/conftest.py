@@ -37,6 +37,36 @@ os.environ.setdefault("SYSTEM_DATABASE_URL", TEST_SYSTEM_DATABASE_URL)
 os.environ.setdefault("ALLOW_MISSING_PGVECTOR", "1")
 os.environ.setdefault("GPU_RUNTIME", "simulated")
 os.environ.setdefault("GPU_SIMULATION_SPEEDUP", "100000")
+os.environ.setdefault("STORAGE_BACKEND", "memory")
+os.environ.setdefault("IMAGE_BACKEND", "simulated")
+
+
+def _discover_playwright_chromium() -> str | None:
+    """Find a pre-installed Chromium without hardcoding its version.
+
+    The production Docker image runs ``playwright install chromium`` at
+    build time, so the bundled browser always matches the installed
+    ``playwright`` package there and needs no override. A dev sandbox can
+    have an older or newer pre-installed build under a version-specific
+    directory (``chromium-1194``, say), which the installed package will
+    refuse to launch without an explicit path — so this looks for one.
+    """
+    if os.getenv("PLAYWRIGHT_EXECUTABLE_PATH"):
+        return None  # respect an explicit override
+    browsers_path = os.getenv("PLAYWRIGHT_BROWSERS_PATH")
+    if not browsers_path:
+        return None
+    from pathlib import Path
+
+    for candidate in sorted(Path(browsers_path).glob("chromium*/chrome-linux/chrome")):
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+_discovered_chromium = _discover_playwright_chromium()
+if _discovered_chromium:
+    os.environ.setdefault("PLAYWRIGHT_EXECUTABLE_PATH", _discovered_chromium)
 
 
 def _database_reachable() -> bool:

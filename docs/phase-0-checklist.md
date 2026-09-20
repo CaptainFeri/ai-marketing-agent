@@ -42,9 +42,14 @@ the runtime with real adapters as each model is validated.
 
 ## Media
 
-- [ ] FLUX.1-schnell on ComfyUI
-- [ ] An HTML overlay template for Persian and Arabic type — image models mangle
-      the script, so type is rendered over the image, never generated into it
+- [ ] FLUX.1-schnell on ComfyUI — the queue, the visual-brief-driven prompt and
+      the ``ComfyUIImageBackend`` seam are built (`docs/image-queue.md`); what
+      is missing is the workflow graph itself, which ``ComfyUIImageBackend``
+      currently refuses to guess at
+- [x] An HTML overlay template for Persian and Arabic type — done and real, not
+      simulated: `app/services/image_overlay.py` renders it with a headless
+      Chromium and composites it with Pillow. Runs today because it needs no
+      GPU weights; see `docs/image-queue.md`.
 - [ ] Piper (Persian, CPU) and Chatterbox (English/Arabic) voice samples
 - [ ] One `voice` video assembled with FFmpeg
 - [ ] Wan 2.2 5B and LatentSync on the 3090 Ti: time, VRAM and quality recorded

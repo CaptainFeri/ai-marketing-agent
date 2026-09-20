@@ -34,7 +34,14 @@ app/
     session.py two engines: tenant-scoped, and BYPASSRLS for cross-tenant work
   schemas/     request/response models; BrandBriefData validates the questionnaire
   api/v1/      routers; deps.py binds the caller's tenant to the request session
-  services/    auth, quota, package lifecycle — the logic worth testing directly
+  services/    auth, quota, package lifecycle, questionnaire, media pipeline —
+               the logic worth testing directly
+    image_backend.py / image_overlay.py / image_compose.py / storage.py
+               the image queue: FLUX stand-in, a real Chromium-rendered
+               overlay, a real Pillow compositor, real MinIO-compatible
+               storage (docs/image-queue.md)
+    media_jobs.py  runs one image job end to end, the media counterpart of
+               agents/executor.py
   worker/
     gpu_scheduler.py   pure policy: which batch runs next
     dispatcher.py      leases, retries, quota bookkeeping

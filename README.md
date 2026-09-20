@@ -30,6 +30,7 @@ everything else is built on:
 | JSON Schema contracts for all eight agents, used as both a decoding constraint and a check | `app/agents/`, `schemas/` |
 | Agent prompts, context assembly, the validate-and-retry runner, and re-run from any step | `app/agents/prompts.py`, `context.py`, `runner.py` |
 | Brand questionnaire wizard: ~25 questions, an SSRF-safe website reader, an async "guess it" assistant | `app/services/questionnaire.py`, `website.py`, `brief_draft.py` |
+| Image queue: marketizer-driven FLUX prompts, a **real** HTML/Chromium overlay renderer for Persian/Arabic text, a **real** Pillow compositor, **real** MinIO-compatible storage | `app/services/image_*.py`, `media_jobs.py`, `storage.py` |
 | Hardware probe and automatic configuration, self-correcting from measured switch times | `app/core/platform.py`, `app/services/tuning.py` |
 
 **Not built yet**, and deliberately so:
@@ -40,10 +41,10 @@ everything else is built on:
   runs the whole platform end to end without weights present, with plausible
   timings, so everything above is exercisable today. Setting any other value
   currently fails loudly rather than producing placeholder content.
-- **Any article written by a real model.** The chain runs end to end against
-  a simulated one; whether Qwen3 clears phase 0's bar — 7 of 10 publishable per
-  language — is the open question, and the prompts are written to be edited
-  once there is output to read.
+- **Any article or image produced by a real model.** The text chain and the
+  image queue both run end to end against simulated backends; whether Qwen3
+  and FLUX.1-schnell clear phase 0's bar is the open question that measuring
+  them on the real card answers.
 - **The wizard's frontend.** The API and its logic are done (see
   [`docs/questionnaire.md`](docs/questionnaire.md)); the Next.js panel that
   renders it is still to come.
@@ -146,6 +147,7 @@ Further reading:
 - [`docs/agent-contracts.md`](docs/agent-contracts.md) — the eight agent output schemas
 - [`docs/agents.md`](docs/agents.md) — prompts, context, retries and re-runs
 - [`docs/questionnaire.md`](docs/questionnaire.md) — the wizard, the "guess it" assistant, and the SSRF guard
+- [`docs/image-queue.md`](docs/image-queue.md) — visual briefs, the real overlay renderer, storage, and gate 2's selection requirement
 - [`docs/platform-tuning.md`](docs/platform-tuning.md) — hardware probing and automatic configuration
 - [`docs/gpu-scheduling.md`](docs/gpu-scheduling.md) — the scheduler and the quota mechanism in detail
 - [`docs/deployment.md`](docs/deployment.md) — database roles, secrets, backups
@@ -177,6 +179,6 @@ make test-cov      # with coverage
 make revision m="add publication retry columns"
 ```
 
-363 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
+459 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
 ledger should arrive with tests — those three are where a quiet bug is most
 expensive.

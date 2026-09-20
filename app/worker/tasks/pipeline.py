@@ -22,11 +22,11 @@ from app.db.enums import (
     StepStatus,
     VideoMode,
 )
-from app.db.models import MediaAsset, StepRun, Workspace
+from app.db.models import MediaAsset, StepRun, Tenant, Workspace
 from app.db.tenancy import tenant_session
 from app.services import brief_draft as draft_service
+from app.services import image_compose, storage, website
 from app.services import packages as package_service
-from app.services import website
 from app.worker.celery_app import celery_app
 from app.worker.dispatcher import enqueue_job
 from app.worker.queues import Queue
@@ -207,6 +207,11 @@ def start_media(tenant_id: str, package_id: str) -> dict:
 
     Images and video are queued together; the GPU scheduler is what serialises
     them onto the single card, batching by model (handoff section 6).
+
+    Each distinct visual brief the marketizer produced (handoff section 3 —
+    it runs before gate 1, inside the text chain) gets its own gallery of
+    ``IMAGE_OPTIONS_PER_PACKAGE`` options, so the FLUX prompt actually reflects
+    what an editor approved rather than being generic per-package filler.
     """
     tid, pid = uuid.UUID(tenant_id), uuid.UUID(package_id)
     queued: list[str] = []
@@ -219,26 +224,56 @@ def start_media(tenant_id: str, package_id: str) -> dict:
                 f"this one is in {package.status.value}"
             )
 
-        for index in range(IMAGE_OPTIONS_PER_PACKAGE):
-            asset = MediaAsset(
-                tenant_id=tid,
-                package_id=package.id,
-                kind=MediaKind.IMAGE,
-                storage_key=f"{package.id}/images/option-{index}.png",
+        tenant = session.get(Tenant, tid)
+        prefix = tenant.storage_prefix if tenant else str(tid)
+
+        for visual_brief in package_service.distinct_visual_briefs(session, package):
+            aspect_ratio = str(visual_brief.get("aspect_ratio") or "1:1")
+            width, height = image_compose.dimensions_for(aspect_ratio)
+            prompt = _flux_prompt(visual_brief)
+            overlay_text = (
+                visual_brief.get("overlay_text")
+                if visual_brief.get("render_text_separately", True)
+                else None
             )
-            session.add(asset)
-            session.flush()
-            job = enqueue_job(
-                session,
-                tenant_id=tid,
-                kind=GpuJobKind.IMAGE_FLUX,
-                workspace_id=package.workspace_id,
-                package_id=package.id,
-                media_asset_id=asset.id,
-                locale=package.locale,
-                payload={"option": index, "locale": package.locale},
-            )
-            queued.append(str(job.id))
+
+            for option in range(IMAGE_OPTIONS_PER_PACKAGE):
+                asset = MediaAsset(
+                    tenant_id=tid,
+                    package_id=package.id,
+                    kind=MediaKind.IMAGE,
+                    storage_key="",
+                    prompt=prompt,
+                    meta={"visual_brief": visual_brief, "option": option},
+                )
+                session.add(asset)
+                session.flush()
+                # Computed up front, deterministically from the asset's own
+                # id, so the executor has nowhere to write except here.
+                asset.storage_key = storage.tenant_key(
+                    prefix, "packages", str(package.id), "images", f"{asset.id}.png"
+                )
+                job = enqueue_job(
+                    session,
+                    tenant_id=tid,
+                    kind=GpuJobKind.IMAGE_FLUX,
+                    workspace_id=package.workspace_id,
+                    package_id=package.id,
+                    media_asset_id=asset.id,
+                    locale=package.locale,
+                    payload={
+                        "prompt": prompt,
+                        "negative_prompt": visual_brief.get("negative_prompt"),
+                        "aspect_ratio": aspect_ratio,
+                        "width": width,
+                        "height": height,
+                        "palette": visual_brief.get("palette", []),
+                        "overlay_text": overlay_text,
+                        "locale": package.locale,
+                        "seed": option,
+                    },
+                )
+                queued.append(str(job.id))
 
         for kind in _voice_chain(package.video_mode):
             job = enqueue_job(
@@ -254,6 +289,19 @@ def start_media(tenant_id: str, package_id: str) -> dict:
 
     logger.info("media queued", extra={"package_id": package_id, "jobs": len(queued)})
     return {"package_id": package_id, "queued": queued}
+
+
+def _flux_prompt(visual_brief: dict) -> str:
+    """The text prompt for the image model.
+
+    Never includes ``overlay_text``: it is drawn separately, never fed into
+    the diffusion model, because FLUX mangles Persian and Arabic script
+    (handoff section 5). Only ``scene`` and the style keywords go in.
+    """
+    scene = str(visual_brief.get("scene") or "").strip()
+    raw_keywords = visual_brief.get("style_keywords") or []
+    keywords = [str(keyword).strip() for keyword in raw_keywords if str(keyword).strip()]
+    return ", ".join(part for part in [scene, *keywords] if part)
 
 
 def _voice_chain(video_mode: VideoMode) -> tuple[GpuJobKind, ...]:
@@ -273,9 +321,18 @@ def _voice_chain(video_mode: VideoMode) -> tuple[GpuJobKind, ...]:
 
 @celery_app.task(name="pipeline.media_finished", queue=Queue.PIPELINE.value)
 def media_finished(tenant_id: str, package_id: str) -> dict:
-    """Move a package to gate 2 once its media is ready."""
+    """Move a package to gate 2 once its media is ready.
+
+    Queued by the GPU task once no media job is left pending for this package
+    (``dispatcher.package_has_pending_media``). Idempotent: a package that is
+    not (or no longer) ``media_generating`` — a duplicate call racing a
+    second batch, or an operator who already forced it forward — is a no-op
+    rather than an error, since nothing about that is actually wrong.
+    """
     tid, pid = uuid.UUID(tenant_id), uuid.UUID(package_id)
     with tenant_session(tid) as session:
         package = package_service.get_package(session, pid)
+        if package.status is not PackageStatus.MEDIA_GENERATING:
+            return {"package_id": package_id, "status": package.status.value, "skipped": True}
         package_service.transition(package, PackageStatus.SELECTION)
         return {"package_id": package_id, "status": package.status.value}

@@ -11,11 +11,13 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import Principal, assert_workspace_role, get_db, get_principal
 from app.core.errors import InvalidStateError, NotFoundError
 from app.db.enums import ApprovalGate, PackageStatus, PipelineStep, Role
-from app.db.models import ContentPackage, Topic
+from app.db.models import ContentPackage, MediaAsset, Topic
 from app.schemas.common import Page
 from app.schemas.content import (
     ApprovalOut,
     ApprovalRequest,
+    MediaAssetOut,
+    MediaAssetSelect,
     PackageCreate,
     PackageDetail,
     PackageOut,
@@ -23,6 +25,7 @@ from app.schemas.content import (
     TopicOut,
 )
 from app.services import packages as package_service
+from app.services import storage
 
 #: Re-running the text line only makes sense before the media stage begins.
 RERUNNABLE_STATUSES = frozenset(
@@ -98,7 +101,56 @@ def get_package(
     if package is None:
         raise NotFoundError("content package not found")
     assert_workspace_role(principal, package.workspace_id, Role.VIEWER)
-    return PackageDetail.model_validate(package)
+    detail = PackageDetail.model_validate(package)
+    _attach_media_urls(detail)
+    return detail
+
+
+def _attach_media_urls(detail: PackageDetail) -> None:
+    """Fill in a loadable URL for each media asset.
+
+    Not part of the pydantic model itself: generating one means a call out to
+    the storage backend (a presigned GET against MinIO), which has no
+    business happening inside a validator. An asset whose generation is still
+    running or failed has no object at its key yet, so it is left ``None``
+    rather than handed a URL that 404s.
+    """
+    backend = storage.get_backend()
+    for asset in detail.media_assets:
+        if asset.storage_key and asset.mime_type:
+            asset.url = backend.url(asset.storage_key)
+
+
+@router.patch("/{package_id}/media/{media_asset_id}", response_model=MediaAssetOut)
+def select_media_asset(
+    package_id: uuid.UUID,
+    media_asset_id: uuid.UUID,
+    payload: MediaAssetSelect,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> MediaAssetOut:
+    """Mark (or unmark) one of the generated options as chosen.
+
+    This is what gate 2 approval actually means: the gallery the image queue
+    produced is only a set of options until an editor picks from it.
+    Multiple assets may be selected at once — a package can carry an image
+    for one channel and a different one for another.
+    """
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
+
+    asset = session.get(MediaAsset, media_asset_id)
+    if asset is None or asset.package_id != package.id:
+        raise NotFoundError("media asset not found on this package")
+    if not asset.mime_type:
+        raise InvalidStateError("this asset has not finished generating yet")
+
+    asset.is_selected = payload.is_selected
+    session.flush()
+
+    out = MediaAssetOut.model_validate(asset)
+    out.url = storage.get_backend().url(asset.storage_key) if asset.storage_key else None
+    return out
 
 
 @router.post("/{package_id}/gates/{gate}", response_model=ApprovalOut)

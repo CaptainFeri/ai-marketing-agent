@@ -5,16 +5,19 @@ from __future__ import annotations
 import logging
 import os
 import socket
+import uuid
 
 from app.agents.executor import execute_standalone_job, execute_step_job
 from app.db.enums import GpuJobKind, GpuJobStatus
 from app.db.models import GpuJob
 from app.db.tenancy import system_session
+from app.services.media_jobs import execute_image_job
 from app.worker.celery_app import celery_app
 from app.worker.dispatcher import (
     claim_next_batch,
     complete_job,
     fail_job,
+    package_has_pending_jobs,
     reclaim_expired_leases,
     record_switch,
     start_job,
@@ -56,8 +59,11 @@ def dispatch() -> dict:
             record_switch(session, switch_seconds)
 
     succeeded = failed = 0
-    # Packages whose next step should be queued once the batch is booked.
+    # Packages whose next text step should be queued once the batch is booked.
     advanced: list[tuple[str, str]] = []
+    # Packages that may have just finished all their media (image, TTS,
+    # lip-sync, ...) and should be checked for gate 2.
+    media_touched: list[tuple[str, str]] = []
     for job_id in job_ids:
         with system_session() as session:
             job = session.get(GpuJob, job_id)
@@ -66,6 +72,8 @@ def dispatch() -> dict:
             start_job(session, job_id)
             payload = dict(job.payload)
             locale = str(payload.get("locale", "*"))
+            job_tenant = str(job.tenant_id)
+            job_package = str(job.package_id) if job.package_id else None
 
         try:
             if kind is GpuJobKind.LLM_TEXT:
@@ -76,10 +84,6 @@ def dispatch() -> dict:
                     job = session.get(GpuJob, job_id)
                     if job is None:
                         continue
-                    # Read these inside the session: the instance is detached
-                    # once the block exits.
-                    job_tenant = str(job.tenant_id)
-                    job_package = str(job.package_id) if job.package_id else None
                     if job.step_run_id is not None:
                         step_result = execute_step_job(session, job)
                     else:
@@ -93,8 +97,21 @@ def dispatch() -> dict:
                     "attempts": step_result.attempts,
                     "model": step_result.model,
                 }
-                if job_package:
-                    advanced.append((job_tenant, job_package))
+            elif kind is GpuJobKind.IMAGE_FLUX:
+                # Likewise for images: generate the base picture, draw any
+                # overlay text separately (handoff section 5), composite and
+                # store — see app.services.media_jobs.
+                with system_session() as session:
+                    job = session.get(GpuJob, job_id)
+                    if job is None:
+                        continue
+                    image_result = execute_image_job(session, job)
+                gpu_seconds = image_result.gpu_seconds
+                output = {
+                    "storage_key": image_result.storage_key,
+                    "width": image_result.width,
+                    "height": image_result.height,
+                }
             else:
                 media_result = runtime.run(kind, payload)
                 gpu_seconds = media_result.gpu_seconds
@@ -104,6 +121,8 @@ def dispatch() -> dict:
             with system_session() as session:
                 fail_job(session, job_id, f"{type(exc).__name__}: {exc}")
             failed += 1
+            if job_package and kind is not GpuJobKind.LLM_TEXT:
+                media_touched.append((job_tenant, job_package))
             continue
 
         with system_session() as session:
@@ -116,6 +135,12 @@ def dispatch() -> dict:
             )
         succeeded += 1
 
+        if job_package:
+            if kind is GpuJobKind.LLM_TEXT:
+                advanced.append((job_tenant, job_package))
+            else:
+                media_touched.append((job_tenant, job_package))
+
     # Chaining happens after the batch so a slow pipeline task cannot hold
     # the card, and so a failed booking does not queue work twice.
     if advanced:
@@ -123,6 +148,17 @@ def dispatch() -> dict:
 
         for tenant_id, package_id in dict.fromkeys(advanced):
             advance_text.delay(tenant_id, package_id)
+
+    if media_touched:
+        from app.worker.tasks.pipeline import media_finished
+
+        for tenant_id, package_id in dict.fromkeys(media_touched):
+            with system_session() as session:
+                still_pending = package_has_pending_jobs(
+                    session, uuid.UUID(package_id), exclude_kind=GpuJobKind.LLM_TEXT
+                )
+            if not still_pending:
+                media_finished.delay(tenant_id, package_id)
 
     logger.info(
         "gpu batch finished",

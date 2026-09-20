@@ -6,9 +6,12 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 # ffmpeg is needed by the media_cpu worker for muxing (handoff section 8).
+# fonts-noto-core gives Chromium real glyphs for Persian and Arabic script —
+# without it the overlay renderer (app/services/image_overlay.py) draws
+# boxes instead of text, which defeats the entire reason it exists.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      build-essential libpq5 ffmpeg curl \
+      build-essential libpq5 ffmpeg curl fonts-noto-core \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv/app
@@ -16,6 +19,15 @@ WORKDIR /srv/app
 COPY pyproject.toml ./
 COPY app ./app
 RUN pip install --no-cache-dir .
+
+# One Chromium, shared by every worker that renders an overlay. Installed to
+# a fixed, world-readable path so the unprivileged user below can launch it;
+# left unset in Settings.playwright_executable_path so Playwright resolves
+# its own bundled build here rather than needing an explicit override (that
+# setting exists for dev sandboxes with a browser at a nonstandard path).
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+RUN python -m playwright install --with-deps chromium \
+ && chmod -R a+rX /opt/pw-browsers
 
 COPY alembic.ini ./
 COPY migrations ./migrations
