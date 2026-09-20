@@ -198,8 +198,9 @@ def test_a_failing_qa_report_sends_the_package_back_to_the_writer(package, syste
     finally:
         simulation._SAMPLES[PipelineStep.QA] = original
 
-    # Six steps, then back to the writer rather than on to gate 1.
-    assert ran[:6] == TEXT_STEPS
+    # The six steps up to and including QA, then back to the writer —
+    # never on to the marketizer, since QA failed.
+    assert ran[:6] == TEXT_STEPS[:6]
     assert ran[6] == PipelineStep.WRITER.value
 
     system_db.refresh(package)

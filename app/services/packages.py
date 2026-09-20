@@ -59,7 +59,13 @@ GATE_FOR_STATUS = {
     PackageStatus.SELECTION: ApprovalGate.MEDIA,
 }
 
-#: Order of the text pipeline (handoff section 3, step 2).
+#: Order of the text pipeline (handoff section 3, steps 2-3).
+#:
+#: The marketizer runs *inside* this chain, before gate 1 — not after it. The
+#: handoff is explicit that what gate 1 approves is "channel version +
+#: visual_brief + A/B variants", and the image queue reads the marketizer's
+#: visual_brief to build its FLUX prompts, so those variants have to exist
+#: before MEDIA_GENERATING can be entered at all.
 TEXT_PIPELINE: tuple[PipelineStep, ...] = (
     PipelineStep.RESEARCHER,
     PipelineStep.STRATEGIST,
@@ -67,6 +73,7 @@ TEXT_PIPELINE: tuple[PipelineStep, ...] = (
     PipelineStep.GEO_OPTIMIZER,
     PipelineStep.SEO_OPTIMIZER,
     PipelineStep.QA,
+    PipelineStep.MARKETIZER,
 )
 
 
@@ -195,6 +202,9 @@ def record_approval(
             f"gate {gate.value} applies to packages in {expected_status.value}, "
             f"this one is in {package.status.value}"
         )
+
+    if gate is ApprovalGate.MEDIA and payload.decision is ApprovalDecision.APPROVED:
+        _require_a_selected_media_asset(session, package)
 
     approval = Approval(
         tenant_id=package.tenant_id,
@@ -326,6 +336,23 @@ def apply_agent_output(
     return None
 
 
+def _require_a_selected_media_asset(session: Session, package: ContentPackage) -> None:
+    """Gate 2 is "select option + schedule" (handoff section 3) — approving it
+    without having picked anything from the gallery is not a decision, it is
+    skipping the gate."""
+    from app.db.models import MediaAsset
+
+    picked = session.scalar(
+        select(MediaAsset.id)
+        .where(MediaAsset.package_id == package.id, MediaAsset.is_selected.is_(True))
+        .limit(1)
+    )
+    if picked is None:
+        raise InvalidStateError(
+            "at least one media asset must be selected before gate 2 can be approved"
+        )
+
+
 def _replace_variants(session: Session, package: ContentPackage, payload: dict) -> None:
     """Rewrite the channel variants from a marketizer run.
 
@@ -360,3 +387,60 @@ def _replace_variants(session: Session, package: ContentPackage, payload: dict) 
             )
         )
     session.flush()
+
+
+# --------------------------------------------------------------------------
+# what the image queue generates from
+# --------------------------------------------------------------------------
+#: A marketizer run that produced this many distinct visual briefs is
+#: treating every channel as a different scene, which is unusual; capped so
+#: one package cannot fan out into an unbounded number of image jobs.
+MAX_VISUAL_BRIEFS_PER_PACKAGE = 3
+
+
+def distinct_visual_briefs(session: Session, package: ContentPackage) -> list[dict]:
+    """The visual briefs the image queue should generate options for.
+
+    Deduped by content: two channels sharing the exact same scene get one
+    image set, not two identical ones. A package whose marketizer run named
+    no visual brief at all — legal per the contract, since a text-only
+    channel needs none — still gets one generic brief built from the
+    article, so gate 2 is never an empty gallery.
+    """
+    import json
+
+    from app.db.models import Variant
+
+    variants = session.scalars(select(Variant).where(Variant.package_id == package.id)).all()
+
+    seen_keys: set[str] = set()
+    briefs: list[dict] = []
+    for variant in variants:
+        if not variant.visual_brief:
+            continue
+        key = json.dumps(variant.visual_brief, sort_keys=True)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        briefs.append(variant.visual_brief)
+        if len(briefs) >= MAX_VISUAL_BRIEFS_PER_PACKAGE:
+            break
+
+    return briefs or [_fallback_visual_brief(package)]
+
+
+def _fallback_visual_brief(package: ContentPackage) -> dict:
+    """Built when no marketizer output named a scene at all.
+
+    Uses the ``VisualBrief`` contract itself, so this degrades to exactly the
+    same shape a real marketizer run would have produced — the image
+    executor never has to know the difference.
+    """
+    from app.agents.contracts import VisualBrief
+
+    title = (package.article or {}).get("title") or package.title
+    return VisualBrief(
+        scene=f"A clean, professional editorial photo representing: {title}",
+        render_text_separately=True,
+        overlay_text=title[:200],
+    ).model_dump(mode="json")

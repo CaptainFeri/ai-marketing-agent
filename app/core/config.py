@@ -69,6 +69,9 @@ class Settings(BaseSettings):
     s3_bucket: str = "ai-marketing"
     s3_region: str = "us-east-1"
     s3_secure: bool = False
+    # "memory" runs the platform with no MinIO present — phase 0/1 default,
+    # same idea as GPU_RUNTIME=simulated and LLM_CLIENT=simulated.
+    storage_backend: str = "memory"
 
     # ---- GPU capacity (section 6 & 7 of the handoff) -------------------
     # Seconds of GPU time the scheduler may hand out per day.  20h by default;
@@ -101,6 +104,18 @@ class Settings(BaseSettings):
 
     # Worker processes on the CPU queues.  The GPU queue is always 1.
     celery_cpu_concurrency: int = 4
+
+    # ---- image overlay (handoff section 5: FLUX cannot render fa/ar script,
+    # so text is drawn separately with Playwright and composited on top) -----
+    # Left unset in production: the Docker image runs `playwright install
+    # chromium` at build time and the bundled browser resolves on its own.
+    # Set only to point at a browser in a nonstandard location (a dev sandbox
+    # with a pre-installed Chromium at a version-specific path).
+    playwright_executable_path: str | None = None
+    overlay_render_timeout_seconds: float = 15.0
+    # "simulated" produces a deterministic placeholder in place of
+    # FLUX.1-schnell; phase 0 delivers the ComfyUI workflow this switches to.
+    image_backend: str = "simulated"
 
     # ---- language model (decision D1: self-hosted, nothing leaves here) --
     # "vllm" talks to a local vLLM server; "simulated" runs the pipeline with

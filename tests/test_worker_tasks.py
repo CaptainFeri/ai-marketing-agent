@@ -108,6 +108,7 @@ def test_the_package_walks_the_chain_to_gate_one(package, system_db) -> None:
             PipelineStep.GEO_OPTIMIZER,
             PipelineStep.SEO_OPTIMIZER,
             PipelineStep.QA,
+            PipelineStep.MARKETIZER,
         ]
     ]
 
@@ -201,11 +202,16 @@ def test_dispatch_is_a_no_op_on_an_empty_queue() -> None:
 
 
 def test_dispatch_runs_a_whole_batch(package, system_db) -> None:
+    # TTS rather than IMAGE_FLUX: images now go through the real image
+    # pipeline (app.services.media_jobs), which needs a MediaAsset behind
+    # each job — see tests/test_media_jobs.py for that path. This test is
+    # about the generic dispatch/complete mechanics, so any simulated-runtime
+    # kind demonstrates it just as well.
     for _ in range(3):
         dispatcher.enqueue_job(
             system_db,
             tenant_id=package.tenant_id,
-            kind=GpuJobKind.IMAGE_FLUX,
+            kind=GpuJobKind.TTS,
             package_id=package.id,
         )
     system_db.commit()
@@ -214,7 +220,7 @@ def test_dispatch_runs_a_whole_batch(package, system_db) -> None:
 
     assert result["succeeded"] == 3
     assert result["failed"] == 0
-    assert result["kind"] == GpuJobKind.IMAGE_FLUX.value
+    assert result["kind"] == GpuJobKind.TTS.value
     remaining = system_db.scalars(
         select(GpuJob).where(GpuJob.status != GpuJobStatus.SUCCEEDED)
     ).all()
@@ -226,8 +232,10 @@ def test_a_runtime_failure_is_recorded_not_swallowed(package, system_db) -> None
         def run(self, kind, payload):
             raise RuntimeError("CUDA out of memory")
 
+    # Same reasoning as above: TTS still goes through runtime.run(), which is
+    # what this override needs to intercept.
     set_runtime(Exploding(speedup=1_000_000))
-    dispatcher.enqueue_job(system_db, tenant_id=package.tenant_id, kind=GpuJobKind.IMAGE_FLUX)
+    dispatcher.enqueue_job(system_db, tenant_id=package.tenant_id, kind=GpuJobKind.TTS)
     system_db.commit()
 
     result = dispatch()

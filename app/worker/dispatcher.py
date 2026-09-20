@@ -424,3 +424,26 @@ def queue_depth(session: Session) -> dict[str, int]:
         key = window.value if isinstance(window, GpuWindow) else str(window)
         depth[key] = int(count)
     return depth
+
+
+def package_has_pending_jobs(
+    session: Session, package_id: uuid.UUID, *, exclude_kind: GpuJobKind | None = None
+) -> bool:
+    """True while a package still has GPU work outstanding.
+
+    Used to decide when a package's media generation is actually finished:
+    several jobs for one package (four image options, TTS, Whisper) can
+    complete in different batches, so nothing single job's completion can
+    answer this on its own. ``exclude_kind`` leaves the text pipeline's own
+    ``LLM_TEXT`` jobs out of the count where the caller only cares about
+    media — a package can only be in ``media_generating`` once its text jobs
+    are long done, but excluding them keeps the check honest about what it is
+    actually asking.
+    """
+    conditions = [
+        GpuJob.package_id == package_id,
+        GpuJob.status.in_([GpuJobStatus.PENDING, GpuJobStatus.LEASED, GpuJobStatus.RUNNING]),
+    ]
+    if exclude_kind is not None:
+        conditions.append(GpuJob.kind != exclude_kind)
+    return session.scalar(select(GpuJob.id).where(*conditions).limit(1)) is not None
