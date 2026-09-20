@@ -29,6 +29,7 @@ everything else is built on:
 | Content package state machine and the two human gates | `app/services/packages.py` |
 | JSON Schema contracts for all eight agents, used as both a decoding constraint and a check | `app/agents/`, `schemas/` |
 | Agent prompts, context assembly, the validate-and-retry runner, and re-run from any step | `app/agents/prompts.py`, `context.py`, `runner.py` |
+| Brand questionnaire wizard: ~25 questions, an SSRF-safe website reader, an async "guess it" assistant | `app/services/questionnaire.py`, `website.py`, `brief_draft.py` |
 | Hardware probe and automatic configuration, self-correcting from measured switch times | `app/core/platform.py`, `app/services/tuning.py` |
 
 **Not built yet**, and deliberately so:
@@ -43,7 +44,9 @@ everything else is built on:
   a simulated one; whether Qwen3 clears phase 0's bar — 7 of 10 publishable per
   language — is the open question, and the prompts are written to be edited
   once there is output to read.
-- **The questionnaire wizard** in the panel (phase 1, week 3).
+- **The wizard's frontend.** The API and its logic are done (see
+  [`docs/questionnaire.md`](docs/questionnaire.md)); the Next.js panel that
+  renders it is still to come.
 - **Channel connectors** — WordPress and Telegram are phase 1 weeks 7–8.
 - **The Next.js panel.**
 
@@ -142,6 +145,7 @@ Further reading:
 - [`docs/architecture.md`](docs/architecture.md) — how each handoff decision landed in code
 - [`docs/agent-contracts.md`](docs/agent-contracts.md) — the eight agent output schemas
 - [`docs/agents.md`](docs/agents.md) — prompts, context, retries and re-runs
+- [`docs/questionnaire.md`](docs/questionnaire.md) — the wizard, the "guess it" assistant, and the SSRF guard
 - [`docs/platform-tuning.md`](docs/platform-tuning.md) — hardware probing and automatic configuration
 - [`docs/gpu-scheduling.md`](docs/gpu-scheduling.md) — the scheduler and the quota mechanism in detail
 - [`docs/deployment.md`](docs/deployment.md) — database roles, secrets, backups
@@ -173,6 +177,6 @@ make test-cov      # with coverage
 make revision m="add publication retry columns"
 ```
 
-275 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
+363 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
 ledger should arrive with tests — those three are where a quiet bug is most
 expensive.

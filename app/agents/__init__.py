@@ -8,6 +8,7 @@ checked against it afterwards.
 """
 
 from app.agents.contracts import (
+    BriefSuggestion,
     Claim,
     DraftOutput,
     GeoOptimizedOutput,
@@ -31,6 +32,7 @@ from app.agents.registry import (
 __all__ = [
     "AGENT_OUTPUTS",
     "AgentOutputError",
+    "BriefSuggestion",
     "Claim",
     "DraftOutput",
     "GeoOptimizedOutput",

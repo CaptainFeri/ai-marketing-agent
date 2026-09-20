@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from enum import Enum as PyEnum
 from typing import Any
 
-from sqlalchemy import DateTime, ForeignKey, MetaData, func, text
+from sqlalchemy import DateTime, Enum, ForeignKey, MetaData, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column
 
@@ -19,6 +20,24 @@ NAMING_CONVENTION = {
     "fk": "fk_%(table_name)s_%(column_0_N_name)s",
     "pk": "pk_%(table_name)s",
 }
+
+
+def enum_column(enum_class: type[PyEnum], *, length: int, name: str) -> Enum:
+    """A VARCHAR column holding an enum's **value**, not its member name.
+
+    SQLAlchemy stores ``PipelineStep.GEO_OPTIMIZER`` as ``GEO_OPTIMIZER`` by
+    default. Everything outside the ORM — the API, the JSON in JSONB columns,
+    a dashboard query, a psql session — uses ``geo_optimizer``, so storing the
+    name makes ``WHERE status = 'drafting'`` silently return nothing. Values
+    are what we store.
+    """
+    return Enum(
+        enum_class,
+        native_enum=False,
+        length=length,
+        name=name,
+        values_callable=lambda cls: [member.value for member in cls],
+    )
 
 
 class Base(DeclarativeBase):

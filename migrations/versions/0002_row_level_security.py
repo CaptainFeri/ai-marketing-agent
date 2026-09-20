@@ -31,6 +31,9 @@ TENANT_TABLES: tuple[str, ...] = (
     "membership",
     "workspace",
     "brand_brief",
+    # brief_draft is added in 0005 with its own policy; it appears in
+    # TENANT_SCOPED_TABLES, so the drift test looks for it here too.
+    "brief_draft",
     "topic",
     "content_package",
     "step_run",

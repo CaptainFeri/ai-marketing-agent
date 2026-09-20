@@ -151,6 +151,18 @@ _SAMPLES: dict[PipelineStep, dict[str, Any]] = {
         ],
         "video_script": [{"text": f"{_MARK} spoken line.", "seconds": 5.0}],
     },
+    PipelineStep.BRIEF_ASSISTANT: {
+        "description": f"{_MARK} brand description drafted from the website",
+        "offerings": [f"{_MARK} product"],
+        "persona_name": f"{_MARK} persona",
+        "persona_pains": [f"{_MARK} pain"],
+        "tone": ["professional"],
+        "person": "we",
+        "reading_level": "general",
+        "pillars": [f"{_MARK} pillar"],
+        "seed_keywords_fa": [f"{_MARK} کلیدواژه"],
+        "notes": [f"{_MARK} nothing was really read"],
+    },
     PipelineStep.TOPIC_PLANNER: {
         "topics": [
             {

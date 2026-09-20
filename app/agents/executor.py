@@ -13,17 +13,18 @@ the first time.
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
-from app.agents.context import build_context
+from app.agents.context import AgentContext, build_context
 from app.agents.llm import LlmClient
 from app.agents.runner import run_agent
 from app.core.config import settings
 from app.db.enums import PipelineStep, StepStatus
-from app.db.models import ContentPackage, GpuJob, StepRun
+from app.db.models import BriefDraft, ContentPackage, GpuJob, StepRun
 from app.services.packages import apply_agent_output
 
 logger = logging.getLogger(__name__)
@@ -114,4 +115,64 @@ def execute_step_job(session: Session, job: GpuJob, client: LlmClient | None = N
         attempts=run.attempts,
         model=run.response.model,
         rewound_to=rewound,
+    )
+
+
+# ---------------------------------------------------------------------------
+# agents that are not part of a package's chain
+# ---------------------------------------------------------------------------
+def execute_standalone_job(
+    session: Session, job: GpuJob, client: LlmClient | None = None
+) -> StepResult:
+    """Run an agent that has no ``StepRun`` behind it.
+
+    Today that is only the brief assistant, which belongs to a workspace
+    rather than to a package. The result is written where the caller said to
+    put it, keyed off ``payload["agent"]``.
+    """
+    agent = job.payload.get("agent")
+    if agent != PipelineStep.BRIEF_ASSISTANT.value:
+        raise ValueError(f"gpu job {job.id} names no agent this worker can run: {agent!r}")
+
+    from app.services import brief_draft as draft_service
+
+    draft = session.get(BriefDraft, uuid.UUID(job.payload["draft_id"]))
+    if draft is None:
+        raise LookupError(f"brief draft {job.payload['draft_id']} not found")
+
+    context = AgentContext(
+        step=PipelineStep.BRIEF_ASSISTANT,
+        locale=str(job.payload.get("locale") or "fa"),
+        title=str(job.payload.get("brand") or draft.answers.get("brand_name") or ""),
+        brief={},
+        material=draft.website_excerpt,
+        known_answers={
+            key: value for key, value in draft.answers.items() if value not in (None, "", [], {})
+        },
+    )
+
+    try:
+        run = run_agent(PipelineStep.BRIEF_ASSISTANT, context, client)
+    except Exception as exc:
+        draft_service.fail_suggestion(draft, f"{type(exc).__name__}: {exc}")
+        session.flush()
+        raise
+
+    draft_service.store_suggestion(draft, run.payload)
+    session.flush()
+
+    logger.info(
+        "brief suggestion ready",
+        extra={
+            "workspace_id": str(draft.workspace_id),
+            "attempts": run.attempts,
+            "had_website": bool(draft.website_excerpt),
+        },
+    )
+    return StepResult(
+        step=PipelineStep.BRIEF_ASSISTANT,
+        seconds=run.model_seconds,
+        payload=run.payload,
+        attempts=run.attempts,
+        model=run.response.model,
     )

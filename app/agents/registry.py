@@ -20,6 +20,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from app.agents.contracts import (
+    BriefSuggestion,
     DraftOutput,
     GeoOptimizedOutput,
     MarketizedOutput,
@@ -42,6 +43,7 @@ AGENT_OUTPUTS: dict[PipelineStep, type[BaseModel]] = {
     PipelineStep.QA: QaReport,
     PipelineStep.MARKETIZER: MarketizedOutput,
     PipelineStep.TOPIC_PLANNER: TopicPlanOutput,
+    PipelineStep.BRIEF_ASSISTANT: BriefSuggestion,
 }
 
 #: Where ``scripts/export_schemas.py`` writes the generated files.

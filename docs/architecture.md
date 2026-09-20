@@ -41,6 +41,7 @@ app/
     gpu_runtime.py     what actually loads models (phase 0 fills this in)
     tasks/             Celery entry points per queue
 migrations/    0001 schema · 0002 row level security · 0003 optional pgvector
+               0004 switch calibration · 0005 brief drafts · 0006 enum values
 ```
 
 ## Two database roles, on purpose

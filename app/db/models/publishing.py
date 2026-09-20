@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     Index,
@@ -22,7 +21,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TenantScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import (
+    Base,
+    TenantScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    enum_column,
+)
 from app.db.enums import Channel, PublicationStatus
 
 if TYPE_CHECKING:
@@ -45,10 +50,10 @@ class Publication(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("variant.id", ondelete="SET NULL")
     )
     channel: Mapped[Channel] = mapped_column(
-        Enum(Channel, native_enum=False, length=32, name="channel"), nullable=False
+        enum_column(Channel, length=32, name="channel"), nullable=False
     )
     status: Mapped[PublicationStatus] = mapped_column(
-        Enum(PublicationStatus, native_enum=False, length=32, name="publication_status"),
+        enum_column(PublicationStatus, length=32, name="publication_status"),
         default=PublicationStatus.SCHEDULED,
         nullable=False,
     )
@@ -103,7 +108,7 @@ class ChannelCredential(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, 
         UUID(as_uuid=True), ForeignKey("workspace.id", ondelete="CASCADE"), nullable=False
     )
     channel: Mapped[Channel] = mapped_column(
-        Enum(Channel, native_enum=False, length=32, name="channel"), nullable=False
+        enum_column(Channel, length=32, name="channel"), nullable=False
     )
     # Lets one workspace hold e.g. two Telegram channels.
     label: Mapped[str] = mapped_column(String(64), default="default", nullable=False)
