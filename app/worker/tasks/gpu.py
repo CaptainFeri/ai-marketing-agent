@@ -11,7 +11,7 @@ from app.agents.executor import execute_standalone_job, execute_step_job
 from app.db.enums import GpuJobKind, GpuJobStatus
 from app.db.models import GpuJob
 from app.db.tenancy import system_session
-from app.services.media_jobs import execute_image_job
+from app.services.media_jobs import execute_image_job, execute_tts_job
 from app.worker.celery_app import celery_app
 from app.worker.dispatcher import (
     claim_next_batch,
@@ -75,6 +75,8 @@ def dispatch() -> dict:
             job_tenant = str(job.tenant_id)
             job_package = str(job.package_id) if job.package_id else None
 
+        gpu_seconds: float
+        output: dict[str, object]
         try:
             if kind is GpuJobKind.LLM_TEXT:
                 # Text jobs are agent runs: the executor rebuilds the context
@@ -111,6 +113,21 @@ def dispatch() -> dict:
                     "storage_key": image_result.storage_key,
                     "width": image_result.width,
                     "height": image_result.height,
+                }
+            elif kind is GpuJobKind.TTS:
+                # Narration is a dedicated real backend too (espeak-ng by
+                # default), not the generic simulated fallback below — see
+                # app.services.tts_backend.
+                with system_session() as session:
+                    job = session.get(GpuJob, job_id)
+                    if job is None:
+                        continue
+                    tts_result = execute_tts_job(session, job)
+                gpu_seconds = tts_result.gpu_seconds
+                output = {
+                    "audio_asset_id": tts_result.audio_asset_id,
+                    "subtitle_asset_id": tts_result.subtitle_asset_id,
+                    "duration_seconds": tts_result.duration_seconds,
                 }
             else:
                 media_result = runtime.run(kind, payload)

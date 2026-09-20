@@ -307,13 +307,16 @@ def _flux_prompt(visual_brief: dict) -> str:
 def _voice_chain(video_mode: VideoMode) -> tuple[GpuJobKind, ...]:
     """The GPU steps each video mode needs (handoff section 8).
 
-    ``none`` needs no speech at all; ``voice`` needs TTS plus Whisper for
-    subtitle timing; ``face`` adds lip-sync on top.  Persian TTS runs on the
-    CPU via Piper and so never appears here.
+    ``none`` needs no speech at all. ``voice`` needs one narration track —
+    no separate Whisper step: ``execute_tts_job`` synthesizes the narration
+    one section at a time and already knows each section's exact text and
+    audio duration, which is the entire reason Whisper would otherwise run
+    (see ``app.services.subtitle_render``). ``face`` (phase 3) adds lip-sync
+    on top of the same narration.
     """
     if video_mode is VideoMode.NONE:
         return ()
-    chain: tuple[GpuJobKind, ...] = (GpuJobKind.TTS, GpuJobKind.TRANSCRIBE_WHISPER)
+    chain: tuple[GpuJobKind, ...] = (GpuJobKind.TTS,)
     if video_mode is VideoMode.FACE:
         chain += (GpuJobKind.LIPSYNC_LATENTSYNC,)
     return chain

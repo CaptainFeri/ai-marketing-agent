@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import Principal, assert_workspace_role, get_db, get_principal
 from app.core.errors import InvalidStateError, NotFoundError
-from app.db.enums import ApprovalGate, PackageStatus, PipelineStep, Role
+from app.db.enums import (
+    ApprovalDecision,
+    ApprovalGate,
+    PackageStatus,
+    PipelineStep,
+    Role,
+    VideoMode,
+)
 from app.db.models import ContentPackage, MediaAsset, Publication, Topic, Variant
 from app.schemas.common import Page
 from app.schemas.content import (
@@ -264,6 +271,18 @@ def decide_gate(
     package = package_service.get_package(session, package_id)
     assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
     approval = package_service.record_approval(session, package, gate, payload, principal.user_id)
+
+    if (
+        gate is ApprovalGate.MEDIA
+        and payload.decision is ApprovalDecision.APPROVED
+        and package.video_mode is not VideoMode.NONE
+    ):
+        # Queued rather than run inline: muxing shells out to ffmpeg and
+        # should never make a gate-2 approval wait on it.
+        from app.worker.tasks.media_cpu import mux_voice_video
+
+        mux_voice_video.delay(str(principal.tenant_id), str(package_id))
+
     return ApprovalOut.model_validate(approval)
 
 

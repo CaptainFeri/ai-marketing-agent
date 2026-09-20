@@ -25,8 +25,18 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
-from app.db.models import GpuJob, MediaAsset, Tenant
-from app.services import image_backend, image_compose, image_overlay, storage
+from app.core.errors import InvalidStateError
+from app.db.enums import MediaKind
+from app.db.models import ContentPackage, GpuJob, MediaAsset, Tenant
+from app.services import (
+    image_backend,
+    image_compose,
+    image_overlay,
+    storage,
+    subtitle_render,
+    tts_backend,
+)
+from app.services import packages as package_service
 
 logger = logging.getLogger(__name__)
 
@@ -119,4 +129,90 @@ def execute_image_job(session: Session, job: GpuJob) -> ImageJobResult:
         gpu_seconds=generated.gpu_seconds,
         width=composed.width,
         height=composed.height,
+    )
+
+
+@dataclass
+class TtsJobResult:
+    audio_asset_id: str
+    subtitle_asset_id: str | None
+    gpu_seconds: float
+    duration_seconds: float
+
+
+def execute_tts_job(session: Session, job: GpuJob) -> TtsJobResult:
+    """Narrate a package's article and store the audio and its captions.
+
+    Unlike an image job, there is no pre-created ``MediaAsset`` to fill in —
+    a package has exactly one narration track, not a gallery of options to
+    choose between, so both rows are created here rather than by the caller.
+    """
+    if job.package_id is None:
+        raise ValueError(f"gpu job {job.id} has no package to narrate")
+
+    package = session.get(ContentPackage, job.package_id)
+    if package is None:
+        raise LookupError(f"content package {job.package_id} not found")
+    tenant = session.get(Tenant, job.tenant_id)
+    if tenant is None:
+        raise LookupError(f"tenant {job.tenant_id} not found")
+
+    sections = package_service.narration_sections(package.article or {})
+    if not sections:
+        raise InvalidStateError(
+            f"package {package.id} has no article text to narrate yet"
+        )
+
+    backend = tts_backend.get_backend()
+    narration = backend.synthesize(sections, locale=package.locale)
+    srt_bytes = subtitle_render.to_srt(narration.segments)
+
+    store = storage.get_backend()
+    base = ("packages", str(package.id))
+
+    audio_key = storage.tenant_key(tenant.storage_prefix, *base, "audio", f"{job.id}.wav")
+    stored_audio = store.put(audio_key, narration.audio_bytes, narration.mime_type)
+    audio_asset = MediaAsset(
+        tenant_id=package.tenant_id,
+        package_id=package.id,
+        kind=MediaKind.AUDIO,
+        storage_key=stored_audio.key,
+        mime_type=stored_audio.content_type,
+        size_bytes=stored_audio.size_bytes,
+        duration_seconds=narration.duration_seconds,
+        model=narration.model,
+        gpu_seconds=narration.gpu_seconds,
+        is_selected=True,
+        # Decision D7: any AI-synthesized voice is labelled, unconditionally.
+        is_ai_labelled=True,
+    )
+    session.add(audio_asset)
+    session.flush()
+
+    subtitle_asset_id: str | None = None
+    if srt_bytes.strip():
+        subtitle_key = storage.tenant_key(
+            tenant.storage_prefix, *base, "subtitles", f"{job.id}.srt"
+        )
+        stored_srt = store.put(subtitle_key, srt_bytes, "text/plain; charset=utf-8")
+        subtitle_asset = MediaAsset(
+            tenant_id=package.tenant_id,
+            package_id=package.id,
+            kind=MediaKind.SUBTITLE,
+            storage_key=stored_srt.key,
+            mime_type=stored_srt.content_type,
+            size_bytes=stored_srt.size_bytes,
+            duration_seconds=narration.duration_seconds,
+            model=narration.model,
+            is_selected=True,
+        )
+        session.add(subtitle_asset)
+        session.flush()
+        subtitle_asset_id = str(subtitle_asset.id)
+
+    return TtsJobResult(
+        audio_asset_id=str(audio_asset.id),
+        subtitle_asset_id=subtitle_asset_id,
+        gpu_seconds=narration.gpu_seconds,
+        duration_seconds=narration.duration_seconds,
     )
