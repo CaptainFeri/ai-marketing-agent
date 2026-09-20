@@ -9,8 +9,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import Principal, assert_workspace_role, get_db, get_principal
-from app.core.errors import NotFoundError
-from app.db.enums import ApprovalGate, PackageStatus, Role
+from app.core.errors import InvalidStateError, NotFoundError
+from app.db.enums import ApprovalGate, PackageStatus, PipelineStep, Role
 from app.db.models import ContentPackage, Topic
 from app.schemas.common import Page
 from app.schemas.content import (
@@ -23,6 +23,16 @@ from app.schemas.content import (
     TopicOut,
 )
 from app.services import packages as package_service
+
+#: Re-running the text line only makes sense before the media stage begins.
+RERUNNABLE_STATUSES = frozenset(
+    {
+        PackageStatus.DRAFTING,
+        PackageStatus.TEXT_REVIEW,
+        PackageStatus.REJECTED,
+        PackageStatus.FAILED,
+    }
+)
 
 router = APIRouter(prefix="/packages", tags=["content"])
 topics_router = APIRouter(prefix="/topics", tags=["content"])
@@ -108,6 +118,46 @@ def decide_gate(
     assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
     approval = package_service.record_approval(session, package, gate, payload, principal.user_id)
     return ApprovalOut.model_validate(approval)
+
+
+@router.post("/{package_id}/steps/{step}/rerun", response_model=PackageOut)
+def rerun_step(
+    package_id: uuid.UUID,
+    step: PipelineStep,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> PackageOut:
+    """Re-run one agent and everything after it.
+
+    The step's context is rebuilt from the stored intermediate outputs, so it
+    sees what it saw the first time plus any feedback since — which is what
+    makes a targeted re-run cheaper than restarting the package.
+    """
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
+
+    if package.status not in RERUNNABLE_STATUSES:
+        raise InvalidStateError(
+            f"a package in {package.status.value} cannot be re-run",
+            details={"allowed": sorted(s.value for s in RERUNNABLE_STATUSES)},
+        )
+    if step not in package_service.TEXT_PIPELINE:
+        raise InvalidStateError(
+            f"{step.value!r} is not part of the text pipeline",
+            details={"steps": [s.value for s in package_service.TEXT_PIPELINE]},
+        )
+
+    if package.status is not PackageStatus.DRAFTING:
+        package_service.transition(package, PackageStatus.DRAFTING)
+    package_service.rewind_to(package, step)
+    session.flush()
+
+    # Queued rather than run inline: the agent needs the GPU, and the request
+    # should not wait minutes for it.
+    from app.worker.tasks.pipeline import advance_text
+
+    advance_text.delay(str(principal.tenant_id), str(package_id))
+    return PackageOut.model_validate(package)
 
 
 # --------------------------------------------------------------------------

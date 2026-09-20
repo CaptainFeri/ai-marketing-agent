@@ -20,6 +20,13 @@ Cross-reference for reviewers: each decision from
 
 ```
 app/
+  agents/
+    contracts.py  what each agent must return (exported to schemas/)
+    prompts.py    what each agent is told
+    context.py    what each agent is shown, rebuilt from the database
+    runner.py     prompt, validate, retry with the errors attached
+    executor.py   the bridge from a leased GPU job to an agent run
+    llm.py        vLLM client, simulator, and the unavailable stand-in
   core/        settings, security, credential encryption, logging, errors
   db/
     models/    the tables from handoff section 9, plus the GPU queue
@@ -65,9 +72,11 @@ The QA loop returns a weak draft to the writer at most `QA_MAX_RETRIES` times;
 after that the package goes to a human with the QA notes rather than spending
 more GPU time on the same draft.
 
-## What the agents will plug into
+## How the agents plug in
 
-`StepRun` already stores each agent's input, output, model, token counts and
-`gpu_seconds`, which is what makes "re-run from any step" (phase 1, week 3)
-possible without re-running the whole chain. The agent implementations write
-into that shape; nothing above them has to change.
+`StepRun` stores each agent's input summary, output, model, token counts and
+`gpu_seconds`. Because `build_context` reads that back out rather than
+threading state through the queue, a single step can be re-run in isolation
+and still see what it saw the first time — which is what makes
+`POST /packages/{id}/steps/{step}/rerun` cheap compared with restarting the
+package. See [`agents.md`](agents.md).

@@ -33,7 +33,9 @@ the runtime with real adapters as each model is validated.
 - [x] JSON Schema for each of the six text agents and the marketizer — done,
       see `schemas/` and `docs/agent-contracts.md`. Hand `json_schema_for(step)`
       to vLLM as a guided decoding constraint.
-- [ ] A script from brand brief to `article.json`
+- [x] A script from brand brief to `article.json` — the pipeline does this.
+      Point `LLM_CLIENT=vllm` at the server and drive a package through
+      `advance_text`; the assembled article lands in `ContentPackage.article`.
 - [ ] Ten trial articles per language
 - [ ] **Acceptance: at least 7 of 10 per language rated "publishable with minor
       edits" by an editor**

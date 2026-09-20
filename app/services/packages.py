@@ -134,6 +134,21 @@ def create_package(
     return package
 
 
+def rewind_to(package: ContentPackage, step: PipelineStep) -> None:
+    """Arrange for ``step`` to be the next one that runs.
+
+    ``current_step`` records the step that last ran, and
+    :func:`next_text_step` walks forward from it — so rewinding means setting
+    it to the *predecessor* of the target. Assigning the target directly would
+    skip it, which is the opposite of what "send it back to the writer" means.
+    """
+    if step not in TEXT_PIPELINE:
+        package.current_step = step
+        return
+    index = TEXT_PIPELINE.index(step)
+    package.current_step = TEXT_PIPELINE[index - 1] if index > 0 else None
+
+
 def next_text_step(current: PipelineStep | None) -> PipelineStep | None:
     """The step after ``current``, or ``None`` once QA has passed."""
     if current is None:
@@ -203,7 +218,7 @@ def record_approval(
     elif payload.decision is ApprovalDecision.CHANGES_REQUESTED:
         if gate is ApprovalGate.TEXT:
             transition(package, PackageStatus.DRAFTING)
-            package.current_step = payload.return_to_step or PipelineStep.WRITER
+            rewind_to(package, payload.return_to_step or PipelineStep.WRITER)
         else:
             transition(package, PackageStatus.MEDIA_GENERATING)
     else:
@@ -212,3 +227,136 @@ def record_approval(
 
     session.flush()
     return approval
+
+
+# --------------------------------------------------------------------------
+# what an agent's output does to the package
+# --------------------------------------------------------------------------
+#: Steps whose output contributes sections to the finished article, in the
+#: order they run — a later one supersedes an earlier one.
+ARTICLE_STEPS: tuple[PipelineStep, ...] = (
+    PipelineStep.WRITER,
+    PipelineStep.GEO_OPTIMIZER,
+    PipelineStep.SEO_OPTIMIZER,
+)
+
+
+def assemble_article(session: Session, package: ContentPackage) -> dict:
+    """Merge the text stages into the article the editor sees at gate 1.
+
+    Each stage returns the full set of sections rather than a diff, so the
+    latest one wins; the fields each stage alone produces are layered on top.
+    """
+    from app.agents.context import latest_outputs
+
+    outputs = latest_outputs(session, package.id, ARTICLE_STEPS)
+    article: dict = {"locale": package.locale}
+
+    writer = outputs.get(PipelineStep.WRITER.value)
+    if writer:
+        article.update(
+            {
+                "title": writer.get("title"),
+                "excerpt": writer.get("excerpt"),
+                "sections": writer.get("sections", []),
+                "call_to_action": writer.get("call_to_action"),
+                "claim_ids_used": writer.get("claim_ids_used", []),
+                "word_count": writer.get("word_count"),
+            }
+        )
+
+    geo = outputs.get(PipelineStep.GEO_OPTIMIZER.value)
+    if geo:
+        if geo.get("sections"):
+            article["sections"] = geo["sections"]
+        article.update(
+            {
+                "answer_blocks": geo.get("answer_blocks", []),
+                "faq": geo.get("faq", []),
+                "key_takeaways": geo.get("key_takeaways", []),
+                "schema_org": geo.get("schema_org", {}),
+            }
+        )
+
+    seo = outputs.get(PipelineStep.SEO_OPTIMIZER.value)
+    if seo:
+        if seo.get("sections"):
+            article["sections"] = seo["sections"]
+        article.update(
+            {
+                "meta_title": seo.get("meta_title"),
+                "meta_description": seo.get("meta_description"),
+                "slug": seo.get("slug"),
+                "h1": seo.get("h1"),
+                "primary_keyword": seo.get("primary_keyword"),
+                "secondary_keywords": seo.get("secondary_keywords", []),
+                "internal_links": seo.get("internal_links", []),
+                "external_links": seo.get("external_links", []),
+                "image_alts": seo.get("image_alts", []),
+            }
+        )
+
+    return article
+
+
+def apply_agent_output(
+    session: Session, package: ContentPackage, step: PipelineStep, payload: dict
+) -> PipelineStep | None:
+    """Fold one agent's validated output into the package.
+
+    Returns a step to rewind to, when the output says the work has to be
+    redone — today only QA does that.
+    """
+    if step in ARTICLE_STEPS:
+        package.article = assemble_article(session, package)
+        return None
+
+    if step is PipelineStep.QA:
+        package.article = assemble_article(session, package)
+        score = float(payload.get("score", 0.0))
+        return_to = handle_qa_result(package, score)
+        if return_to is not None:
+            rewind_to(package, return_to)
+        return return_to
+
+    if step is PipelineStep.MARKETIZER:
+        _replace_variants(session, package, payload)
+        return None
+
+    return None
+
+
+def _replace_variants(session: Session, package: ContentPackage, payload: dict) -> None:
+    """Rewrite the channel variants from a marketizer run.
+
+    Replaced rather than appended: a re-run means the previous set was wrong,
+    and leaving both would put two versions of the same post in front of the
+    editor at gate 2.
+    """
+    from sqlalchemy import delete
+
+    from app.db.enums import Channel
+    from app.db.models import Variant
+
+    session.execute(delete(Variant).where(Variant.package_id == package.id))
+
+    default_brief = payload.get("default_visual_brief")
+    for item in payload.get("variants", []):
+        session.add(
+            Variant(
+                tenant_id=package.tenant_id,
+                package_id=package.id,
+                channel=Channel(item["channel"]),
+                ab_label=item.get("ab_label"),
+                body={
+                    "hook": item.get("hook"),
+                    "body": item.get("body"),
+                    "hashtags": item.get("hashtags", []),
+                    "call_to_action": item.get("call_to_action"),
+                    "video_script": payload.get("video_script", []),
+                    "utm_campaign": payload.get("utm_campaign"),
+                },
+                visual_brief=item.get("visual_brief") or default_brief,
+            )
+        )
+    session.flush()
