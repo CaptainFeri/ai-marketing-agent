@@ -102,6 +102,21 @@ class Settings(BaseSettings):
     # Worker processes on the CPU queues.  The GPU queue is always 1.
     celery_cpu_concurrency: int = 4
 
+    # ---- language model (decision D1: self-hosted, nothing leaves here) --
+    # "vllm" talks to a local vLLM server; "simulated" runs the pipeline with
+    # contract-valid output and no weights, which is what phase 0/1 use.
+    llm_client: str = "simulated"
+    llm_base_url: str = "http://localhost:8001"
+    llm_model: str = "Qwen/Qwen3-30B-A3B"
+    llm_timeout_seconds: float = 600.0
+    # How vLLM is asked to constrain generation. Recent builds take the
+    # OpenAI-style "response_format"; older ones want "guided_json". Getting
+    # this wrong means unconstrained generation, which fails further away.
+    llm_guided_mode: str = "response_format"
+    # An agent gets this many tries before the step is marked failed; each
+    # retry carries the validation errors back into the prompt.
+    agent_max_attempts: int = 3
+
     # ---- pipeline ------------------------------------------------------
     qa_max_retries: int = 2
     supported_locales: list[str] = ["fa", "en", "ar"]

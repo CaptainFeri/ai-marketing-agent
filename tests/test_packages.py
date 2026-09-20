@@ -169,7 +169,10 @@ def test_requesting_changes_returns_to_the_named_step(tenant_factory, system_db)
         decided_by=None,
     )
     assert package.status is PackageStatus.DRAFTING
-    assert package.current_step is PipelineStep.RESEARCHER
+    # What matters is which step runs next, not what current_step holds:
+    # current_step records the step that last ran, so "send it back to the
+    # researcher" means the next advance must produce the researcher.
+    assert package_service.next_text_step(package.current_step) is PipelineStep.RESEARCHER
 
 
 @requires_db
@@ -217,3 +220,28 @@ def test_a_gate_applies_only_at_its_own_stage(tenant_factory, system_db) -> None
             ApprovalRequest(decision=ApprovalDecision.APPROVED),
             decided_by=None,
         )
+
+
+def test_rewinding_makes_the_named_step_run_next() -> None:
+    """current_step is the step that last ran, so a rewind sets its predecessor.
+
+    Assigning the target directly would skip it — the opposite of what
+    "send it back to the writer" means.
+    """
+    package = make_package(PackageStatus.DRAFTING)
+    for target in package_service.TEXT_PIPELINE:
+        package_service.rewind_to(package, target)
+        assert package_service.next_text_step(package.current_step) is target
+
+
+def test_rewinding_to_the_first_step_clears_the_marker() -> None:
+    package = make_package(PackageStatus.DRAFTING)
+    package_service.rewind_to(package, PipelineStep.RESEARCHER)
+    assert package.current_step is None
+
+
+def test_rewinding_to_a_step_outside_the_text_line_is_left_alone() -> None:
+    """The marketizer is not part of the six-agent chain."""
+    package = make_package(PackageStatus.DRAFTING)
+    package_service.rewind_to(package, PipelineStep.MARKETIZER)
+    assert package.current_step is PipelineStep.MARKETIZER

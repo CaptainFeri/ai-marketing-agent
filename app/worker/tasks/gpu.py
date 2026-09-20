@@ -6,7 +6,8 @@ import logging
 import os
 import socket
 
-from app.db.enums import GpuJobStatus
+from app.agents.executor import execute_step_job
+from app.db.enums import GpuJobKind, GpuJobStatus
 from app.db.models import GpuJob
 from app.db.tenancy import system_session
 from app.worker.celery_app import celery_app
@@ -55,6 +56,8 @@ def dispatch() -> dict:
             record_switch(session, switch_seconds)
 
     succeeded = failed = 0
+    # Packages whose next step should be queued once the batch is booked.
+    advanced: list[tuple[str, str]] = []
     for job_id in job_ids:
         with system_session() as session:
             job = session.get(GpuJob, job_id)
@@ -65,7 +68,31 @@ def dispatch() -> dict:
             locale = str(payload.get("locale", "*"))
 
         try:
-            result = runtime.run(kind, payload)
+            if kind is GpuJobKind.LLM_TEXT:
+                # Text jobs are agent runs: the executor rebuilds the context
+                # from the database, runs the agent and stores the validated
+                # output on the StepRun.
+                with system_session() as session:
+                    job = session.get(GpuJob, job_id)
+                    if job is None:
+                        continue
+                    # Read these inside the session: the instance is detached
+                    # once the block exits.
+                    job_tenant = str(job.tenant_id)
+                    job_package = str(job.package_id) if job.package_id else None
+                    step_result = execute_step_job(session, job)
+                gpu_seconds = step_result.seconds
+                output = {
+                    "step": step_result.step.value,
+                    "attempts": step_result.attempts,
+                    "model": step_result.model,
+                }
+                if job_package:
+                    advanced.append((job_tenant, job_package))
+            else:
+                media_result = runtime.run(kind, payload)
+                gpu_seconds = media_result.gpu_seconds
+                output = media_result.output
         except Exception as exc:  # noqa: BLE001 - the failure is recorded, not swallowed
             logger.exception("gpu job failed", extra={"job_id": str(job_id)})
             with system_session() as session:
@@ -77,11 +104,19 @@ def dispatch() -> dict:
             complete_job(
                 session,
                 job_id,
-                gpu_seconds=result.gpu_seconds,
-                result=result.output,
+                gpu_seconds=gpu_seconds,
+                result=output,
                 locale=locale,
             )
         succeeded += 1
+
+    # Chaining happens after the batch so a slow pipeline task cannot hold
+    # the card, and so a failed booking does not queue work twice.
+    if advanced:
+        from app.worker.tasks.pipeline import advance_text
+
+        for tenant_id, package_id in dict.fromkeys(advanced):
+            advance_text.delay(tenant_id, package_id)
 
     logger.info(
         "gpu batch finished",

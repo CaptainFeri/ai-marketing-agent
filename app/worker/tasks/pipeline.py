@@ -18,6 +18,7 @@ from app.db.enums import (
     GpuJobKind,
     MediaKind,
     PackageStatus,
+    PipelineStep,
     StepStatus,
     VideoMode,
 )
@@ -94,6 +95,47 @@ def advance_text(tenant_id: str, package_id: str) -> dict:
 
         package.current_step = next_step
         return {"package_id": package_id, "step": next_step.value, "job_id": str(job.id)}
+
+
+@celery_app.task(name="pipeline.rerun_step", queue=Queue.PIPELINE.value)
+def rerun_step(tenant_id: str, package_id: str, step: str) -> dict:
+    """Re-run one step and everything after it (handoff phase 1, week 3).
+
+    The context is rebuilt from the database, so the step sees what it would
+    have seen originally, plus whatever feedback has accumulated since.
+    """
+    tid, pid = uuid.UUID(tenant_id), uuid.UUID(package_id)
+    target = PipelineStep(step)
+
+    with tenant_session(tid) as session:
+        package = package_service.get_package(session, pid)
+        if package.status not in _RERUNNABLE_STATUSES:
+            raise InvalidStateError(
+                f"a package in {package.status.value} cannot be re-run; it is past "
+                "the point where the text pipeline applies",
+                details={"allowed": sorted(s.value for s in _RERUNNABLE_STATUSES)},
+            )
+        if target not in package_service.TEXT_PIPELINE:
+            raise InvalidStateError(
+                f"{step!r} is not part of the text pipeline",
+                details={"steps": [s.value for s in package_service.TEXT_PIPELINE]},
+            )
+        if package.status is not PackageStatus.DRAFTING:
+            package_service.transition(package, PackageStatus.DRAFTING)
+        package_service.rewind_to(package, target)
+
+    return advance_text(tenant_id, package_id)
+
+
+#: Re-running the text line only makes sense before the media stage begins.
+_RERUNNABLE_STATUSES = frozenset(
+    {
+        PackageStatus.DRAFTING,
+        PackageStatus.TEXT_REVIEW,
+        PackageStatus.REJECTED,
+        PackageStatus.FAILED,
+    }
+)
 
 
 @celery_app.task(name="pipeline.start_media", queue=Queue.PIPELINE.value)

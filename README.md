@@ -28,6 +28,7 @@ everything else is built on:
 | Quota mechanism: measured `gpu_seconds` → moving average → daily per-tenant share | `app/services/quota.py` |
 | Content package state machine and the two human gates | `app/services/packages.py` |
 | JSON Schema contracts for all eight agents, used as both a decoding constraint and a check | `app/agents/`, `schemas/` |
+| Agent prompts, context assembly, the validate-and-retry runner, and re-run from any step | `app/agents/prompts.py`, `context.py`, `runner.py` |
 | Hardware probe and automatic configuration, self-correcting from measured switch times | `app/core/platform.py`, `app/services/tuning.py` |
 
 **Not built yet**, and deliberately so:
@@ -38,9 +39,11 @@ everything else is built on:
   runs the whole platform end to end without weights present, with plausible
   timings, so everything above is exercisable today. Setting any other value
   currently fails loudly rather than producing placeholder content.
-- **The agent prompts themselves.** Their output contracts are done (see
-  [`docs/agent-contracts.md`](docs/agent-contracts.md)); the prompts that
-  produce those shapes are phase 1, weeks 3–4.
+- **Any article written by a real model.** The chain runs end to end against
+  a simulated one; whether Qwen3 clears phase 0's bar — 7 of 10 publishable per
+  language — is the open question, and the prompts are written to be edited
+  once there is output to read.
+- **The questionnaire wizard** in the panel (phase 1, week 3).
 - **Channel connectors** — WordPress and Telegram are phase 1 weeks 7–8.
 - **The Next.js panel.**
 
@@ -138,6 +141,7 @@ Further reading:
 
 - [`docs/architecture.md`](docs/architecture.md) — how each handoff decision landed in code
 - [`docs/agent-contracts.md`](docs/agent-contracts.md) — the eight agent output schemas
+- [`docs/agents.md`](docs/agents.md) — prompts, context, retries and re-runs
 - [`docs/platform-tuning.md`](docs/platform-tuning.md) — hardware probing and automatic configuration
 - [`docs/gpu-scheduling.md`](docs/gpu-scheduling.md) — the scheduler and the quota mechanism in detail
 - [`docs/deployment.md`](docs/deployment.md) — database roles, secrets, backups
@@ -169,6 +173,6 @@ make test-cov      # with coverage
 make revision m="add publication retry columns"
 ```
 
-218 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
+275 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
 ledger should arrive with tests — those three are where a quiet bug is most
 expensive.
