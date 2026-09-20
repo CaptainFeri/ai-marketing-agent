@@ -216,9 +216,22 @@ export default function PackageDetailPage() {
                 {asset.url && asset.mime_type?.startsWith("image/") ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={asset.url} alt={asset.prompt ?? asset.kind} className="aspect-square w-full rounded object-cover" />
+                ) : asset.url && asset.mime_type?.startsWith("video/") ? (
+                  <video src={asset.url} controls className="aspect-square w-full rounded object-cover" />
+                ) : asset.url && asset.mime_type?.startsWith("audio/") ? (
+                  <div className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded bg-surface p-2 text-xs text-zinc-500">
+                    {asset.kind}
+                    <audio src={asset.url} controls className="w-full" />
+                  </div>
                 ) : (
                   <div className="flex aspect-square w-full items-center justify-center rounded bg-surface text-xs text-zinc-500">
-                    {asset.kind}
+                    {asset.url ? (
+                      <a href={asset.url} target="_blank" rel="noreferrer" className="underline">
+                        {asset.kind}
+                      </a>
+                    ) : (
+                      asset.kind
+                    )}
                   </div>
                 )}
                 <Button

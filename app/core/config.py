@@ -117,6 +117,18 @@ class Settings(BaseSettings):
     # FLUX.1-schnell; phase 0 delivers the ComfyUI workflow this switches to.
     image_backend: str = "simulated"
 
+    # ---- voice (handoff section 8: video_mode "voice" — Piper for fa,
+    # Chatterbox for en/ar) -------------------------------------------------
+    # "espeak" is real, offline speech synthesis via the system's espeak-ng —
+    # lower fidelity than Piper/Chatterbox but needs no downloaded model
+    # weights, so it produces genuine audio today. "production" routes to
+    # Piper/Chatterbox and fails loudly until phase 0 delivers their voice
+    # models (handoff section 11).
+    tts_backend: str = "espeak"
+    espeak_binary: str = "espeak-ng"
+    ffmpeg_binary: str = "ffmpeg"
+    ffprobe_binary: str = "ffprobe"
+
     # ---- language model (decision D1: self-hosted, nothing leaves here) --
     # "vllm" talks to a local vLLM server; "simulated" runs the pipeline with
     # contract-valid output and no weights, which is what phase 0/1 use.

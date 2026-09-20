@@ -16,3 +16,5 @@ build/
 *.log
 data/
 .DS_Store
+celerybeat-schedule*
+dump.rdb

@@ -6,12 +6,15 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
 # ffmpeg is needed by the media_cpu worker for muxing (handoff section 8).
-# fonts-noto-core gives Chromium real glyphs for Persian and Arabic script —
-# without it the overlay renderer (app/services/image_overlay.py) draws
-# boxes instead of text, which defeats the entire reason it exists.
+# espeak-ng is the default TTS backend (app/services/tts_backend.py) — real,
+# offline narration with no model download, standing in for Piper/Chatterbox
+# until phase 0 validates those. fonts-noto-core gives Chromium real glyphs
+# for Persian and Arabic script — without it the overlay renderer
+# (app/services/image_overlay.py) draws boxes instead of text, which defeats
+# the entire reason it exists.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      build-essential libpq5 ffmpeg curl fonts-noto-core \
+      build-essential libpq5 ffmpeg espeak-ng curl fonts-noto-core \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /srv/app

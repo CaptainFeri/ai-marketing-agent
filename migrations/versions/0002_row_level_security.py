@@ -66,6 +66,11 @@ def upgrade() -> None:
     )
 
     for table in TENANT_TABLES:
+        if table == "brief_draft":
+            # The table itself does not exist until 0005, which applies its
+            # own identical policy there — it stays in TENANT_TABLES only so
+            # the drift check against TENANT_SCOPED_TABLES sees it.
+            continue
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
         # ``current_setting(..., true)`` returns NULL when the GUC is unset,
@@ -86,6 +91,8 @@ def downgrade() -> None:
     op.execute("ALTER TABLE tenant DISABLE ROW LEVEL SECURITY")
 
     for table in reversed(TENANT_TABLES):
+        if table == "brief_draft":
+            continue  # see the matching skip in upgrade()
         op.execute(f"DROP POLICY IF EXISTS {POLICY_NAME} ON {table}")
         op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} DISABLE ROW LEVEL SECURITY")

@@ -19,6 +19,7 @@ celery_app = Celery(
         "app.worker.tasks.pipeline",
         "app.worker.tasks.maintenance",
         "app.worker.tasks.publish",
+        "app.worker.tasks.media_cpu",
     ],
 )
 

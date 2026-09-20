@@ -13,6 +13,7 @@ so the transitions are enforced here rather than left to each caller.
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import UTC, datetime
 
@@ -307,6 +308,34 @@ def assemble_article(session: Session, package: ContentPackage) -> dict:
         )
 
     return article
+
+
+#: Markdown tokens a writer/SEO agent might leave in section bodies — stripped
+#: before narration so a TTS engine reads words, not asterisks.
+_MARKDOWN_TOKENS = re.compile(r"[*_`#]+|\[([^\]]*)\]\([^)]*\)")
+
+
+def narration_sections(article: dict) -> list[str]:
+    """The article's readable prose, as one string per section, in the order
+    a video's narration should speak them.
+
+    Kept separate from ``assemble_article`` because this is a view for one
+    consumer (:mod:`app.services.tts_backend`) — a script for a voice, not
+    the structured article gate 1 reviews.
+    """
+
+    def clean(text: str) -> str:
+        return _MARKDOWN_TOKENS.sub(lambda m: m.group(1) or "", text).strip()
+
+    sections: list[str] = []
+    excerpt = article.get("excerpt")
+    if excerpt:
+        sections.append(clean(str(excerpt)))
+    for section in article.get("sections") or []:
+        body = section.get("body") if isinstance(section, dict) else None
+        if body:
+            sections.append(clean(str(body)))
+    return [text for text in sections if text]
 
 
 def apply_agent_output(

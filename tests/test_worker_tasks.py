@@ -142,14 +142,12 @@ def test_media_fans_out_after_gate_one(package, system_db) -> None:
 
     result = start_media(str(package.tenant_id), str(package.id))
 
-    # Four image options, plus TTS and Whisper for a `voice` package.
-    assert len(result["queued"]) == 6
+    # Four image options, plus one narration track for a `voice` package —
+    # no separate Whisper job; execute_tts_job times its own captions
+    # (app.services.subtitle_render).
+    assert len(result["queued"]) == 5
     kinds = {job.kind for job in system_db.scalars(select(GpuJob)).all()}
-    assert kinds == {
-        GpuJobKind.IMAGE_FLUX,
-        GpuJobKind.TTS,
-        GpuJobKind.TRANSCRIBE_WHISPER,
-    }
+    assert kinds == {GpuJobKind.IMAGE_FLUX, GpuJobKind.TTS}
     assets = system_db.scalars(select(MediaAsset)).all()
     assert len(assets) == 4
     assert all(asset.kind is MediaKind.IMAGE for asset in assets)
@@ -202,16 +200,17 @@ def test_dispatch_is_a_no_op_on_an_empty_queue() -> None:
 
 
 def test_dispatch_runs_a_whole_batch(package, system_db) -> None:
-    # TTS rather than IMAGE_FLUX: images now go through the real image
-    # pipeline (app.services.media_jobs), which needs a MediaAsset behind
-    # each job — see tests/test_media_jobs.py for that path. This test is
-    # about the generic dispatch/complete mechanics, so any simulated-runtime
-    # kind demonstrates it just as well.
+    # TRANSCRIBE_WHISPER rather than IMAGE_FLUX or TTS: both of those now go
+    # through their own real pipelines (app.services.media_jobs), each
+    # needing its own fixture — see tests/test_media_jobs.py and
+    # tests/test_tts_job.py. This test is about the generic dispatch/complete
+    # mechanics, so any kind still on the generic simulated-runtime path
+    # demonstrates it just as well.
     for _ in range(3):
         dispatcher.enqueue_job(
             system_db,
             tenant_id=package.tenant_id,
-            kind=GpuJobKind.TTS,
+            kind=GpuJobKind.TRANSCRIBE_WHISPER,
             package_id=package.id,
         )
     system_db.commit()
@@ -220,7 +219,7 @@ def test_dispatch_runs_a_whole_batch(package, system_db) -> None:
 
     assert result["succeeded"] == 3
     assert result["failed"] == 0
-    assert result["kind"] == GpuJobKind.TTS.value
+    assert result["kind"] == GpuJobKind.TRANSCRIBE_WHISPER.value
     remaining = system_db.scalars(
         select(GpuJob).where(GpuJob.status != GpuJobStatus.SUCCEEDED)
     ).all()
@@ -232,10 +231,12 @@ def test_a_runtime_failure_is_recorded_not_swallowed(package, system_db) -> None
         def run(self, kind, payload):
             raise RuntimeError("CUDA out of memory")
 
-    # Same reasoning as above: TTS still goes through runtime.run(), which is
-    # what this override needs to intercept.
+    # Same reasoning as above: TRANSCRIBE_WHISPER still goes through
+    # runtime.run(), which is what this override needs to intercept.
     set_runtime(Exploding(speedup=1_000_000))
-    dispatcher.enqueue_job(system_db, tenant_id=package.tenant_id, kind=GpuJobKind.TTS)
+    dispatcher.enqueue_job(
+        system_db, tenant_id=package.tenant_id, kind=GpuJobKind.TRANSCRIBE_WHISPER
+    )
     system_db.commit()
 
     result = dispatch()
