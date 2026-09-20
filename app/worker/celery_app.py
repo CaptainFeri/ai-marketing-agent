@@ -18,6 +18,7 @@ celery_app = Celery(
         "app.worker.tasks.gpu",
         "app.worker.tasks.pipeline",
         "app.worker.tasks.maintenance",
+        "app.worker.tasks.publish",
     ],
 )
 
@@ -57,6 +58,12 @@ celery_app.conf.update(
             "task": "maintenance.allocate_daily_quota",
             "schedule": crontab(hour="0", minute="5"),
             "options": {"queue": Queue.MAINTENANCE.value},
+        },
+        # Handoff section 3, step 6: find what is due and fire the connector.
+        "publish-dispatch": {
+            "task": "publish.dispatch",
+            "schedule": 60.0,
+            "options": {"queue": Queue.PUBLISH.value, "expires": 55},
         },
     },
 )

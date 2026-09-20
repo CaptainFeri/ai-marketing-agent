@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.deps import Principal, assert_workspace_role, get_db, get_principal
 from app.core.errors import InvalidStateError, NotFoundError
 from app.db.enums import ApprovalGate, PackageStatus, PipelineStep, Role
-from app.db.models import ContentPackage, MediaAsset, Topic
+from app.db.models import ContentPackage, MediaAsset, Publication, Topic, Variant
 from app.schemas.common import Page
 from app.schemas.content import (
     ApprovalOut,
@@ -21,10 +21,15 @@ from app.schemas.content import (
     PackageCreate,
     PackageDetail,
     PackageOut,
+    PublicationCreate,
+    PublicationOut,
     TopicCreate,
     TopicOut,
+    VariantOut,
+    VariantSelect,
 )
 from app.services import packages as package_service
+from app.services import publishing as publishing_service
 from app.services import storage
 
 #: Re-running the text line only makes sense before the media stage begins.
@@ -151,6 +156,96 @@ def select_media_asset(
     out = MediaAssetOut.model_validate(asset)
     out.url = storage.get_backend().url(asset.storage_key) if asset.storage_key else None
     return out
+
+
+@router.patch("/{package_id}/variants/{variant_id}", response_model=VariantOut)
+def select_variant(
+    package_id: uuid.UUID,
+    variant_id: uuid.UUID,
+    payload: VariantSelect,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> VariantOut:
+    """Mark (or unmark) a channel variant as the one to schedule.
+
+    A variant has to be selected before ``POST .../publications`` will queue
+    it — the same "an editor actually picked this" requirement gate 2 places
+    on media, applied to which channel copy goes out.
+    """
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
+
+    variant = session.get(Variant, variant_id)
+    if variant is None or variant.package_id != package.id:
+        raise NotFoundError("variant not found on this package")
+
+    variant.is_selected = payload.is_selected
+    session.flush()
+    return VariantOut.model_validate(variant)
+
+
+@router.post(
+    "/{package_id}/publications",
+    response_model=PublicationOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_publication(
+    package_id: uuid.UUID,
+    payload: PublicationCreate,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> PublicationOut:
+    """Schedule a selected channel variant for publishing.
+
+    Firing the connector itself happens later, off the ``publish`` queue
+    (handoff section 3, step 6) — this only records the intent so the panel
+    can show it and the scheduler can pick it up when it comes due.
+    """
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
+
+    variant = session.get(Variant, payload.variant_id)
+    if variant is None or variant.package_id != package.id:
+        raise NotFoundError("variant not found on this package")
+
+    publication = publishing_service.schedule_publication(
+        session, package, variant, payload.scheduled_at
+    )
+    return PublicationOut.model_validate(publication)
+
+
+@router.get("/{package_id}/publications", response_model=list[PublicationOut])
+def list_publications(
+    package_id: uuid.UUID,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> list[PublicationOut]:
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.VIEWER)
+    rows = session.scalars(
+        select(Publication)
+        .where(Publication.package_id == package.id)
+        .order_by(Publication.scheduled_at)
+    ).all()
+    return [PublicationOut.model_validate(row) for row in rows]
+
+
+@router.post("/{package_id}/publications/{publication_id}/cancel", response_model=PublicationOut)
+def cancel_publication(
+    package_id: uuid.UUID,
+    publication_id: uuid.UUID,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> PublicationOut:
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
+
+    publication = session.get(Publication, publication_id)
+    if publication is None or publication.package_id != package.id:
+        raise NotFoundError("publication not found on this package")
+
+    publishing_service.cancel_publication(session, publication)
+    return PublicationOut.model_validate(publication)
 
 
 @router.post("/{package_id}/gates/{gate}", response_model=ApprovalOut)

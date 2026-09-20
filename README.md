@@ -31,6 +31,7 @@ everything else is built on:
 | Agent prompts, context assembly, the validate-and-retry runner, and re-run from any step | `app/agents/prompts.py`, `context.py`, `runner.py` |
 | Brand questionnaire wizard: ~25 questions, an SSRF-safe website reader, an async "guess it" assistant | `app/services/questionnaire.py`, `website.py`, `brief_draft.py` |
 | Image queue: marketizer-driven FLUX prompts, a **real** HTML/Chromium overlay renderer for Persian/Arabic text, a **real** Pillow compositor, **real** MinIO-compatible storage | `app/services/image_*.py`, `media_jobs.py`, `storage.py` |
+| **Real** WordPress and Telegram connectors — REST API / Bot API, encrypted credentials, a three-attempts-then-alert retry state machine | `app/connectors/`, `app/services/publishing.py`, `channel_credentials.py` |
 | Hardware probe and automatic configuration, self-correcting from measured switch times | `app/core/platform.py`, `app/services/tuning.py` |
 
 **Not built yet**, and deliberately so:
@@ -45,9 +46,12 @@ everything else is built on:
   image queue both run end to end against simulated backends; whether Qwen3
   and FLUX.1-schnell clear phase 0's bar is the open question that measuring
   them on the real card answers.
-- **The wizard's frontend.** The API and its logic are done (see
-  [`docs/questionnaire.md`](docs/questionnaire.md)); the Next.js panel that
-  renders it is still to come.
+- **The wizard's frontend, and every panel screen generally.** The APIs and
+  their logic are done (see [`docs/questionnaire.md`](docs/questionnaire.md),
+  [`docs/publishing.md`](docs/publishing.md)); the Next.js panel that
+  renders them is still to come.
+- **hreflang via WPML/Polylang**, and Instagram/LinkedIn/X/YouTube/Aparat
+  connectors — phase 2/3 per the handoff's own channel table.
 - **Channel connectors** — WordPress and Telegram are phase 1 weeks 7–8.
 - **The Next.js panel.**
 
@@ -148,6 +152,7 @@ Further reading:
 - [`docs/agents.md`](docs/agents.md) — prompts, context, retries and re-runs
 - [`docs/questionnaire.md`](docs/questionnaire.md) — the wizard, the "guess it" assistant, and the SSRF guard
 - [`docs/image-queue.md`](docs/image-queue.md) — visual briefs, the real overlay renderer, storage, and gate 2's selection requirement
+- [`docs/publishing.md`](docs/publishing.md) — the WordPress and Telegram connectors, credentials, and the retry/alert state machine
 - [`docs/platform-tuning.md`](docs/platform-tuning.md) — hardware probing and automatic configuration
 - [`docs/gpu-scheduling.md`](docs/gpu-scheduling.md) — the scheduler and the quota mechanism in detail
 - [`docs/deployment.md`](docs/deployment.md) — database roles, secrets, backups
@@ -179,6 +184,6 @@ make test-cov      # with coverage
 make revision m="add publication retry columns"
 ```
 
-459 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
+526 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
 ledger should arrive with tests — those three are where a quiet bug is most
 expensive.
