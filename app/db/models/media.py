@@ -10,7 +10,6 @@ from sqlalchemy import (
     Boolean,
     Date,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     Index,
@@ -21,7 +20,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TenantScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import (
+    Base,
+    TenantScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    enum_column,
+)
 from app.db.enums import MediaKind, SpeakerKind
 
 if TYPE_CHECKING:
@@ -41,7 +46,7 @@ class MediaAsset(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("variant.id", ondelete="SET NULL")
     )
     kind: Mapped[MediaKind] = mapped_column(
-        Enum(MediaKind, native_enum=False, length=16, name="media_kind"), nullable=False
+        enum_column(MediaKind, length=16, name="media_kind"), nullable=False
     )
     # Object key inside the bucket; always starts with the tenant prefix.
     storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
@@ -81,7 +86,7 @@ class SpeakerProfile(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Bas
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     kind: Mapped[SpeakerKind] = mapped_column(
-        Enum(SpeakerKind, native_enum=False, length=32, name="speaker_kind"), nullable=False
+        enum_column(SpeakerKind, length=32, name="speaker_kind"), nullable=False
     )
     # Reference material: portrait, 30-60s reference video, voice samples.
     assets: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)

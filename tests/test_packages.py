@@ -245,3 +245,54 @@ def test_rewinding_to_a_step_outside_the_text_line_is_left_alone() -> None:
     package = make_package(PackageStatus.DRAFTING)
     package_service.rewind_to(package, PipelineStep.MARKETIZER)
     assert package.current_step is PipelineStep.MARKETIZER
+
+
+# --------------------------------------------------------------------------
+# how enums are stored
+# --------------------------------------------------------------------------
+def test_enum_columns_store_values_not_member_names() -> None:
+    """``WHERE status = 'drafting'`` must find rows.
+
+    SQLAlchemy stores the member name by default, so the database would hold
+    ``DRAFTING`` while the API, the JSONB payloads and every hand-written
+    query use ``drafting``. ``app.db.base.enum_column`` is what prevents that;
+    this test is what stops someone reverting to a bare ``Enum(...)``.
+    """
+    import sqlalchemy as sa
+
+    from app.db.models import Base
+
+    checked = 0
+    for table in Base.metadata.sorted_tables:
+        for column in table.columns:
+            if not isinstance(column.type, sa.Enum) or column.type.enum_class is None:
+                continue
+            checked += 1
+            stored = set(column.type.enums)
+            values = {member.value for member in column.type.enum_class}
+            assert stored == values, f"{table.name}.{column.name} stores member names"
+    assert checked > 20, "the walk found almost no enum columns; has the model moved?"
+
+
+@requires_db
+def test_a_status_round_trips_through_the_database(tenant_factory, system_db) -> None:
+    from sqlalchemy import text
+
+    tenant, workspace = tenant_factory("acme")
+    package = ContentPackage(
+        tenant_id=tenant.id,
+        workspace_id=workspace.id,
+        title="x",
+        locale="fa",
+        status=PackageStatus.TEXT_REVIEW,
+    )
+    system_db.add(package)
+    system_db.commit()
+
+    raw = system_db.execute(
+        text("SELECT status FROM content_package WHERE id = :id"), {"id": package.id}
+    ).scalar()
+    assert raw == "text_review"
+
+    system_db.expire(package)
+    assert package.status is PackageStatus.TEXT_REVIEW

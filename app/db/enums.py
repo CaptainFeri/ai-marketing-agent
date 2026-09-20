@@ -74,6 +74,9 @@ class PipelineStep(StrEnum):
     QA = "qa"
     MARKETIZER = "marketizer"
     TOPIC_PLANNER = "topic_planner"
+    # Not part of a package's chain: it drafts a brand brief from the
+    # customer's website for the questionnaire's "guess it" button.
+    BRIEF_ASSISTANT = "brief_assistant"
 
 
 class StepStatus(StrEnum):
@@ -174,6 +177,19 @@ class GpuJobStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
+
+class SuggestionStatus(StrEnum):
+    """State of the questionnaire's "guess it" button.
+
+    The work runs on the GPU queue like everything else, so the panel polls
+    rather than waiting on the request.
+    """
+
+    IDLE = "idle"
+    RUNNING = "running"
+    READY = "ready"
+    FAILED = "failed"
 
 
 class TopicStatus(StrEnum):

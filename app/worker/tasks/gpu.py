@@ -6,7 +6,7 @@ import logging
 import os
 import socket
 
-from app.agents.executor import execute_step_job
+from app.agents.executor import execute_standalone_job, execute_step_job
 from app.db.enums import GpuJobKind, GpuJobStatus
 from app.db.models import GpuJob
 from app.db.tenancy import system_session
@@ -71,7 +71,7 @@ def dispatch() -> dict:
             if kind is GpuJobKind.LLM_TEXT:
                 # Text jobs are agent runs: the executor rebuilds the context
                 # from the database, runs the agent and stores the validated
-                # output on the StepRun.
+                # output where it belongs.
                 with system_session() as session:
                     job = session.get(GpuJob, job_id)
                     if job is None:
@@ -80,7 +80,13 @@ def dispatch() -> dict:
                     # once the block exits.
                     job_tenant = str(job.tenant_id)
                     job_package = str(job.package_id) if job.package_id else None
-                    step_result = execute_step_job(session, job)
+                    if job.step_run_id is not None:
+                        step_result = execute_step_job(session, job)
+                    else:
+                        # An agent that belongs to a workspace rather than a
+                        # package — today, the brief assistant.
+                        step_result = execute_standalone_job(session, job)
+                        job_package = None
                 gpu_seconds = step_result.seconds
                 output = {
                     "step": step_result.step.value,

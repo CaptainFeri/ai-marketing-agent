@@ -1,0 +1,243 @@
+{
+  "$defs": {
+    "SuggestedPair": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "default": "",
+          "maxLength": 500,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "title": "SuggestedPair",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A draft of the answerable parts of the questionnaire.\n\nOnly the fields the assistant is allowed to propose appear here. Which\nmarkets to enter, which channels to publish on and whether to put a real\nperson's face on screen are business decisions, so they are absent by\ndesign — see ``app.services.questionnaire``.\n\nEverything is optional: a thin website should produce a short suggestion\nand an honest ``notes`` entry, not a confident invention.",
+  "properties": {
+    "description": {
+      "anyOf": [
+        {
+          "maxLength": 5000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Description"
+    },
+    "offerings": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 15,
+      "title": "Offerings",
+      "type": "array"
+    },
+    "persona_name": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Persona Name"
+    },
+    "persona_description": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Persona Description"
+    },
+    "persona_pains": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Persona Pains",
+      "type": "array"
+    },
+    "persona_goals": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Persona Goals",
+      "type": "array"
+    },
+    "tone": {
+      "items": {
+        "enum": [
+          "professional",
+          "friendly",
+          "authoritative",
+          "plain",
+          "warm",
+          "witty",
+          "technical"
+        ],
+        "type": "string"
+      },
+      "maxItems": 7,
+      "title": "Tone",
+      "type": "array"
+    },
+    "person": {
+      "anyOf": [
+        {
+          "enum": [
+            "we",
+            "i",
+            "you",
+            "neutral"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Person"
+    },
+    "voice_do": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Voice Do",
+      "type": "array"
+    },
+    "voice_dont": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Voice Dont",
+      "type": "array"
+    },
+    "reading_level": {
+      "anyOf": [
+        {
+          "enum": [
+            "general",
+            "informed",
+            "expert"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Reading Level"
+    },
+    "competitors": {
+      "items": {
+        "$ref": "#/$defs/SuggestedPair"
+      },
+      "maxItems": 10,
+      "title": "Competitors",
+      "type": "array"
+    },
+    "seed_keywords_fa": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Seed Keywords Fa",
+      "type": "array"
+    },
+    "seed_keywords_en": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Seed Keywords En",
+      "type": "array"
+    },
+    "seed_keywords_ar": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Seed Keywords Ar",
+      "type": "array"
+    },
+    "pillars": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Pillars",
+      "type": "array"
+    },
+    "ai_questions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Ai Questions",
+      "type": "array"
+    },
+    "goals": {
+      "items": {
+        "$ref": "#/$defs/SuggestedPair"
+      },
+      "maxItems": 8,
+      "title": "Goals",
+      "type": "array"
+    },
+    "visual_style": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 12,
+      "title": "Visual Style",
+      "type": "array"
+    },
+    "palette": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Palette",
+      "type": "array"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "title": "BriefSuggestion",
+  "type": "object"
+}

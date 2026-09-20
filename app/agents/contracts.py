@@ -364,3 +364,58 @@ class TopicPlanOutput(AgentModel):
 
     topics: list[PlannedTopic] = Field(min_length=1, max_length=60)
     coverage_notes: str = Field(default="", max_length=2000)
+
+
+# ---------------------------------------------------------------------------
+# 9. brief assistant — the questionnaire's "guess it" button
+# ---------------------------------------------------------------------------
+#: Mirrors the option values in ``app.services.questionnaire``; a test asserts
+#: the two stay in step. Keeping them as literals means guided decoding cannot
+#: emit an option the panel does not know how to display.
+ToneOption = Literal[
+    "professional", "friendly", "authoritative", "plain", "warm", "witty", "technical"
+]
+PersonOption = Literal["we", "i", "you", "neutral"]
+ReadingLevelOption = Literal["general", "informed", "expert"]
+
+
+class SuggestedPair(AgentModel):
+    label: str = Field(min_length=1, max_length=200)
+    value: str = Field(default="", max_length=500)
+
+
+class BriefSuggestion(AgentModel):
+    """A draft of the answerable parts of the questionnaire.
+
+    Only the fields the assistant is allowed to propose appear here. Which
+    markets to enter, which channels to publish on and whether to put a real
+    person's face on screen are business decisions, so they are absent by
+    design — see ``app.services.questionnaire``.
+
+    Everything is optional: a thin website should produce a short suggestion
+    and an honest ``notes`` entry, not a confident invention.
+    """
+
+    description: str | None = Field(default=None, max_length=5000)
+    offerings: list[str] = Field(default_factory=list, max_length=15)
+    persona_name: str | None = Field(default=None, max_length=200)
+    persona_description: str | None = Field(default=None, max_length=2000)
+    persona_pains: list[str] = Field(default_factory=list, max_length=10)
+    persona_goals: list[str] = Field(default_factory=list, max_length=10)
+    tone: list[ToneOption] = Field(default_factory=list, max_length=7)
+    person: PersonOption | None = None
+    voice_do: list[str] = Field(default_factory=list, max_length=10)
+    voice_dont: list[str] = Field(default_factory=list, max_length=10)
+    reading_level: ReadingLevelOption | None = None
+    competitors: list[SuggestedPair] = Field(default_factory=list, max_length=10)
+    seed_keywords_fa: list[str] = Field(default_factory=list, max_length=30)
+    seed_keywords_en: list[str] = Field(default_factory=list, max_length=30)
+    seed_keywords_ar: list[str] = Field(default_factory=list, max_length=30)
+    pillars: list[str] = Field(default_factory=list, max_length=10)
+    ai_questions: list[str] = Field(default_factory=list, max_length=20)
+    goals: list[SuggestedPair] = Field(default_factory=list, max_length=8)
+    visual_style: list[str] = Field(default_factory=list, max_length=12)
+    palette: list[str] = Field(default_factory=list, max_length=8)
+    #: What could not be worked out from the material. Saying so is the
+    #: correct answer far more often than guessing is.
+    notes: list[str] = Field(default_factory=list, max_length=10)

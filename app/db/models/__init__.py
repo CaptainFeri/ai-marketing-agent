@@ -4,6 +4,7 @@ from app.db.base import Base
 from app.db.models.content import (
     Approval,
     BrandBrief,
+    BriefDraft,
     ContentPackage,
     StepRun,
     Topic,
@@ -26,6 +27,7 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "membership",
     "workspace",
     "brand_brief",
+    "brief_draft",
     "topic",
     "content_package",
     "step_run",
@@ -44,6 +46,7 @@ __all__ = [
     "Approval",
     "Base",
     "BrandBrief",
+    "BriefDraft",
     "ChannelCredential",
     "ContentPackage",
     "GpuCostEstimate",

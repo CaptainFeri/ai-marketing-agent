@@ -22,9 +22,11 @@ from app.db.enums import (
     StepStatus,
     VideoMode,
 )
-from app.db.models import MediaAsset, StepRun
+from app.db.models import MediaAsset, StepRun, Workspace
 from app.db.tenancy import tenant_session
+from app.services import brief_draft as draft_service
 from app.services import packages as package_service
+from app.services import website
 from app.worker.celery_app import celery_app
 from app.worker.dispatcher import enqueue_job
 from app.worker.queues import Queue
@@ -136,6 +138,67 @@ _RERUNNABLE_STATUSES = frozenset(
         PackageStatus.FAILED,
     }
 )
+
+
+@celery_app.task(name="pipeline.suggest_brief", queue=Queue.PIPELINE.value)
+def suggest_brief(
+    tenant_id: str,
+    workspace_id: str,
+    website_url: str | None = None,
+    refresh_website: bool = False,
+) -> dict:
+    """Prepare a brand brief suggestion for the questionnaire.
+
+    Two halves on two queues: reading the customer's website is I/O on the
+    CPU queue, and drafting from it is a model call that has to go through the
+    GPU queue like everything else. Doing the fetch here keeps a slow customer
+    site from occupying the card while it times out.
+    """
+    tid, wid = uuid.UUID(tenant_id), uuid.UUID(workspace_id)
+
+    with tenant_session(tid) as session:
+        draft = draft_service.get_or_create_draft(session, tid, wid)
+
+        if website_url and (refresh_website or not draft.website_excerpt):
+            try:
+                content = website.fetch(website_url)
+            except website.WebsiteFetchError as exc:
+                # A bad URL is the customer's to fix, and it is the whole
+                # point of the button, so it fails rather than quietly
+                # producing a suggestion from nothing.
+                draft_service.fail_suggestion(draft, str(exc))
+                logger.info(
+                    "website could not be read",
+                    extra={"workspace_id": workspace_id, "reason": str(exc)},
+                )
+                return {"workspace_id": workspace_id, "error": str(exc)}
+            draft_service.store_website(draft, content.url, content.as_prompt_block())
+
+        workspace = session.get(Workspace, wid)
+        locale = (workspace.default_locale if workspace else None) or "fa"
+
+        try:
+            job = enqueue_job(
+                session,
+                tenant_id=tid,
+                kind=GpuJobKind.LLM_TEXT,
+                workspace_id=wid,
+                locale=locale,
+                # Priority ahead of the default: someone is sitting in front
+                # of the wizard waiting for it.
+                priority=10,
+                payload={
+                    "agent": PipelineStep.BRIEF_ASSISTANT.value,
+                    "draft_id": str(draft.id),
+                    "locale": locale,
+                    "brand": draft.answers.get("brand_name"),
+                },
+            )
+        except QuotaExceededError as exc:
+            draft_service.fail_suggestion(draft, "today's GPU quota is used up; try again tomorrow")
+            return {"workspace_id": workspace_id, "error": str(exc)}
+
+    return {"workspace_id": workspace_id, "job_id": str(job.id)}
 
 
 @celery_app.task(name="pipeline.start_media", queue=Queue.PIPELINE.value)

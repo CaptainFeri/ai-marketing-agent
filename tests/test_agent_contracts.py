@@ -88,6 +88,20 @@ VALID: dict[PipelineStep, dict] = {
         ],
         "video_script": [{"text": "سلام، امروز درباره دریل حرف می‌زنیم.", "seconds": 4.0}],
     },
+    PipelineStep.BRIEF_ASSISTANT: {
+        "description": "آکمه ابزار برقی برای کارگاه‌های کوچک می‌سازد.",
+        "offerings": ["دریل برقی", "پیچ‌گوشتی شارژی"],
+        "persona_name": "مدیر خرید کارگاه",
+        "persona_pains": ["خرابی زودهنگام ابزار"],
+        "tone": ["professional", "plain"],
+        "person": "we",
+        "reading_level": "informed",
+        "competitors": [{"label": "رقیب الف", "value": "https://example.com"}],
+        "seed_keywords_fa": ["دریل برقی"],
+        "pillars": ["راهنمای خرید"],
+        "goals": [{"label": "سرنخ ماهانه", "value": "50"}],
+        "notes": ["سایت درباره مخاطب هدف چیزی نگفته بود"],
+    },
     PipelineStep.TOPIC_PLANNER: {
         "topics": [
             {
@@ -283,3 +297,41 @@ def test_visual_briefs_keep_script_out_of_the_image_by_default() -> None:
     from app.agents.contracts import VisualBrief
 
     assert VisualBrief(scene="a drill on a workbench").render_text_separately is True
+
+
+def test_the_assistant_never_proposes_a_business_decision() -> None:
+    """Markets, channels and video mode are the customer's call, not the model's.
+
+    If one of these ever appears in the suggestion contract, the panel would
+    start pre-filling a decision nobody made.
+    """
+    from app.agents.contracts import BriefSuggestion
+
+    forbidden = {"markets", "channels", "video_mode", "website", "brand_name"}
+    assert forbidden.isdisjoint(BriefSuggestion.model_fields)
+
+
+def test_the_suggestion_contract_matches_the_questionnaires_options() -> None:
+    """The literals are duplicated for guided decoding; keep them honest."""
+    from typing import get_args
+
+    from app.agents.contracts import PersonOption, ReadingLevelOption, ToneOption
+    from app.services.questionnaire import BY_ID
+
+    pairs = [
+        (ToneOption, "tone"),
+        (PersonOption, "person"),
+        (ReadingLevelOption, "reading_level"),
+    ]
+    for literal, question_id in pairs:
+        expected = {option.value for option in BY_ID[question_id].options}
+        assert set(get_args(literal)) == expected, question_id
+
+
+def test_the_assistant_covers_every_guessable_question() -> None:
+    """A guessable question with no field to hold the answer is dead weight."""
+    from app.agents.contracts import BriefSuggestion
+    from app.services.questionnaire import GUESSABLE_IDS
+
+    missing = set(GUESSABLE_IDS) - set(BriefSuggestion.model_fields)
+    assert not missing, f"the assistant cannot answer: {sorted(missing)}"

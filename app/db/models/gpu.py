@@ -16,7 +16,6 @@ from sqlalchemy import (
     CheckConstraint,
     Date,
     DateTime,
-    Enum,
     Float,
     ForeignKey,
     Index,
@@ -28,7 +27,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db.base import Base, TenantScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import (
+    Base,
+    TenantScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    enum_column,
+)
 from app.db.enums import GpuJobKind, GpuJobStatus, GpuWindow
 
 
@@ -64,14 +69,14 @@ class GpuJob(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
     )
 
     kind: Mapped[GpuJobKind] = mapped_column(
-        Enum(GpuJobKind, native_enum=False, length=32, name="gpu_job_kind"), nullable=False
+        enum_column(GpuJobKind, length=32, name="gpu_job_kind"), nullable=False
     )
     # Denormalised from ``kind`` so the dispatch index can be used directly.
     window: Mapped[GpuWindow] = mapped_column(
-        Enum(GpuWindow, native_enum=False, length=16, name="gpu_window"), nullable=False
+        enum_column(GpuWindow, length=16, name="gpu_window"), nullable=False
     )
     status: Mapped[GpuJobStatus] = mapped_column(
-        Enum(GpuJobStatus, native_enum=False, length=16, name="gpu_job_status"),
+        enum_column(GpuJobStatus, length=16, name="gpu_job_status"),
         default=GpuJobStatus.PENDING,
         nullable=False,
     )
@@ -141,7 +146,7 @@ class GpuCostEstimate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("kind", "locale", name="kind_locale"),)
 
     kind: Mapped[GpuJobKind] = mapped_column(
-        Enum(GpuJobKind, native_enum=False, length=32, name="gpu_job_kind"), nullable=False
+        enum_column(GpuJobKind, length=32, name="gpu_job_kind"), nullable=False
     )
     # Persian articles are longer to generate than English ones; keep them apart.
     locale: Mapped[str] = mapped_column(String(8), default="*", nullable=False)
@@ -162,10 +167,10 @@ class GpuWindowState(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     singleton: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, unique=True)
     current_window: Mapped[GpuWindow | None] = mapped_column(
-        Enum(GpuWindow, native_enum=False, length=16, name="gpu_window")
+        enum_column(GpuWindow, length=16, name="gpu_window")
     )
     current_kind: Mapped[GpuJobKind | None] = mapped_column(
-        Enum(GpuJobKind, native_enum=False, length=32, name="gpu_job_kind")
+        enum_column(GpuJobKind, length=32, name="gpu_job_kind")
     )
     switched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     switch_count_today: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING, Any
 from sqlalchemy import (
     Boolean,
     DateTime,
-    Enum,
     ForeignKey,
     Integer,
     String,
@@ -18,7 +17,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TenantScopedMixin, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.base import (
+    Base,
+    TenantScopedMixin,
+    TimestampMixin,
+    UUIDPrimaryKeyMixin,
+    enum_column,
+)
 from app.db.enums import Plan, Role
 
 if TYPE_CHECKING:
@@ -33,7 +38,7 @@ class Tenant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     plan: Mapped[Plan] = mapped_column(
-        Enum(Plan, native_enum=False, length=32, name="plan"),
+        enum_column(Plan, length=32, name="plan"),
         default=Plan.TRIAL,
         nullable=False,
     )
@@ -89,9 +94,7 @@ class Membership(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
     workspace_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("workspace.id", ondelete="CASCADE")
     )
-    role: Mapped[Role] = mapped_column(
-        Enum(Role, native_enum=False, length=16, name="role"), nullable=False
-    )
+    role: Mapped[Role] = mapped_column(enum_column(Role, length=16, name="role"), nullable=False)
 
     tenant: Mapped[Tenant] = relationship(back_populates="memberships")
     user: Mapped[User] = relationship(back_populates="memberships")
