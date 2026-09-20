@@ -17,7 +17,12 @@ from app.db.models.gpu import (
     GpuWindowState,
 )
 from app.db.models.media import MediaAsset, SpeakerProfile
-from app.db.models.publishing import ChannelCredential, MetricSnapshot, Publication
+from app.db.models.publishing import (
+    AnalyticsCredential,
+    ChannelCredential,
+    MetricSnapshot,
+    Publication,
+)
 from app.db.models.tenancy import Membership, Tenant, User, Workspace
 
 #: Tables that carry ``tenant_id`` and therefore need a row level security
@@ -38,11 +43,13 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "publication",
     "metric_snapshot",
     "channel_credential",
+    "analytics_credential",
     "gpu_job",
     "gpu_quota_ledger",
 )
 
 __all__ = [
+    "AnalyticsCredential",
     "Approval",
     "Base",
     "BrandBrief",

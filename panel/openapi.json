@@ -1930,6 +1930,276 @@
           }
         }
       }
+    },
+    "/api/v1/workspaces/{workspace_id}/analytics-credentials": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "List Credentials",
+        "operationId": "list_credentials_api_v1_workspaces__workspace_id__analytics_credentials_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AnalyticsCredentialOut"
+                  },
+                  "title": "Response List Credentials Api V1 Workspaces  Workspace Id  Analytics Credentials Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Create Credential",
+        "description": "Store one analytics credential, encrypted.\n\nRestricted to admins, the same bar ``POST .../credentials`` sets for a\npublish credential — a Google service account key is just as sensitive\nas a WordPress application password.",
+        "operationId": "create_credential_api_v1_workspaces__workspace_id__analytics_credentials_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalyticsCredentialCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyticsCredentialOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/analytics-credentials/{credential_id}": {
+      "delete": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Deactivate Credential",
+        "operationId": "deactivate_credential_api_v1_workspaces__workspace_id__analytics_credentials__credential_id__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "credential_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Credential Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/analytics-credentials/pull": {
+      "post": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Pull Now",
+        "description": "Backfill one day's metrics on demand, run inline.\n\nNot queued: this is an operator re-running a day the nightly sweep\nmissed, one workspace at a time — small, occasional, and the caller\nwants to see the result immediately rather than poll for it.",
+        "operationId": "pull_now_api_v1_workspaces__workspace_id__analytics_credentials_pull_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PullMetricsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Pull Now Api V1 Workspaces  Workspace Id  Analytics Credentials Pull Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/{package_id}/metrics": {
+      "get": {
+        "tags": [
+          "analytics"
+        ],
+        "summary": "Get Package Metrics",
+        "description": "The basic dashboard view (handoff section 7): every daily snapshot\nrecorded for any of this package's publications, newest first.",
+        "operationId": "get_package_metrics_api_v1_packages__package_id__metrics_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageMetricsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2060,6 +2330,104 @@
           "accepted"
         ],
         "title": "AcceptResponse"
+      },
+      "AnalyticsCredentialCreate": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/AnalyticsProvider"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Label",
+            "default": "default"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "public_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Public Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "payload"
+        ],
+        "title": "AnalyticsCredentialCreate"
+      },
+      "AnalyticsCredentialOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Workspace Id"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AnalyticsProvider"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "public_metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Public Metadata"
+          },
+          "is_active": {
+            "type": "boolean",
+            "title": "Is Active"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "provider",
+          "label",
+          "public_metadata",
+          "is_active",
+          "last_used_at",
+          "created_at"
+        ],
+        "title": "AnalyticsCredentialOut"
+      },
+      "AnalyticsProvider": {
+        "type": "string",
+        "enum": [
+          "search_console",
+          "ga4"
+        ],
+        "title": "AnalyticsProvider",
+        "description": "Handoff section 7 (weeks 7-8): a read-only measurement source, not a\npublish target — kept separate from ``Channel`` since a publication can\nnever be posted \"to\" Search Console or GA4."
       },
       "AnswersUpdate": {
         "properties": {
@@ -2835,6 +3203,79 @@
         ],
         "title": "MembershipOut"
       },
+      "MetricSnapshotOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "publication_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Publication Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "captured_for": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Captured For"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "metrics": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "publication_id",
+          "source",
+          "captured_for",
+          "impressions",
+          "clicks",
+          "position",
+          "metrics"
+        ],
+        "title": "MetricSnapshotOut"
+      },
       "PackageCreate": {
         "properties": {
           "workspace_id": {
@@ -2999,6 +3440,28 @@
           "article"
         ],
         "title": "PackageDetail"
+      },
+      "PackageMetricsOut": {
+        "properties": {
+          "package_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Package Id"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSnapshotOut"
+            },
+            "type": "array",
+            "title": "Snapshots"
+          }
+        },
+        "type": "object",
+        "required": [
+          "package_id",
+          "snapshots"
+        ],
+        "title": "PackageMetricsOut"
       },
       "PackageOut": {
         "properties": {
@@ -3386,6 +3849,25 @@
           "cancelled"
         ],
         "title": "PublicationStatus"
+      },
+      "PullMetricsRequest": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "title": "PullMetricsRequest",
+        "description": "Manual trigger for a single day — the daily sweep uses \"yesterday\"\nitself; this is for an operator backfilling a day it missed."
       },
       "QuestionnaireState": {
         "properties": {

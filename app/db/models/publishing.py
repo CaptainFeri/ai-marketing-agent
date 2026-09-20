@@ -28,7 +28,7 @@ from app.db.base import (
     UUIDPrimaryKeyMixin,
     enum_column,
 )
-from app.db.enums import Channel, PublicationStatus
+from app.db.enums import AnalyticsProvider, Channel, PublicationStatus
 
 if TYPE_CHECKING:
     from app.db.models.content import ContentPackage
@@ -118,4 +118,30 @@ class ChannelCredential(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, 
     public_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AnalyticsCredential(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
+    """A Google service account key for Search Console or GA4 (handoff
+    section 7), encrypted the same way as a ``ChannelCredential`` — but kept
+    a separate table since it is never something a ``Publication`` targets.
+    """
+
+    __tablename__ = "analytics_credential"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "provider", "label", name="workspace_provider_label"),
+    )
+
+    workspace_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("workspace.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[AnalyticsProvider] = mapped_column(
+        enum_column(AnalyticsProvider, length=32, name="analytics_provider"), nullable=False
+    )
+    label: Mapped[str] = mapped_column(String(64), default="default", nullable=False)
+    encrypted_payload: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    key_version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Safe to display: the GA4 property id, the Search Console site URL.
+    public_metadata: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

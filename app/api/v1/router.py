@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    analytics,
     auth,
     channels,
     health,
@@ -26,5 +27,7 @@ api_router.include_router(packages.router)
 api_router.include_router(packages.topics_router)
 api_router.include_router(quota.router)
 api_router.include_router(platform.router)
+api_router.include_router(analytics.credentials_router)
+api_router.include_router(analytics.metrics_router)
 
 __all__ = ["api_router", "health"]

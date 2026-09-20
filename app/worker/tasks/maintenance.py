@@ -5,7 +5,11 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 
+from sqlalchemy import select
+
+from app.db.models import Workspace
 from app.db.tenancy import system_session
+from app.services import analytics
 from app.services.quota import allocate_day
 from app.worker.celery_app import celery_app
 from app.worker.dispatcher import queue_depth, reclaim_expired_leases
@@ -36,3 +40,32 @@ def report_queue_depth() -> dict[str, int]:
         depth = queue_depth(session)
     logger.info("gpu queue depth", extra=depth)
     return depth
+
+
+@celery_app.task(name="maintenance.pull_daily_metrics", queue=Queue.MAINTENANCE.value)
+def pull_daily_metrics(day_offset: int = -1) -> dict[str, int]:
+    """Pull yesterday's Search Console/GA4 numbers for every active
+    workspace (handoff section 7, step 7). One workspace's failure is
+    logged and does not stop the sweep — ``pull_metrics_for_workspace``
+    already isolates a single provider's failure the same way.
+    """
+    day = (datetime.now(UTC) + timedelta(days=day_offset)).date()
+    written_total = 0
+    workspaces_swept = 0
+    with system_session() as session:
+        workspace_ids = session.scalars(
+            select(Workspace.id).where(Workspace.is_active.is_(True))
+        ).all()
+        for workspace_id in workspace_ids:
+            try:
+                written_total += analytics.pull_metrics_for_workspace(session, workspace_id, day)
+                workspaces_swept += 1
+            except Exception:  # noqa: BLE001 - one workspace must not sink the sweep
+                logger.exception(
+                    "metrics sweep failed for workspace", extra={"workspace_id": str(workspace_id)}
+                )
+    logger.info(
+        "daily metrics pulled",
+        extra={"day": day.isoformat(), "workspaces": workspaces_swept, "snapshots": written_total},
+    )
+    return {"workspaces": workspaces_swept, "snapshots": written_total}

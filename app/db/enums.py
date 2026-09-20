@@ -99,6 +99,15 @@ class Channel(StrEnum):
     APARAT = "aparat"
 
 
+class AnalyticsProvider(StrEnum):
+    """Handoff section 7 (weeks 7-8): a read-only measurement source, not a
+    publish target — kept separate from ``Channel`` since a publication can
+    never be posted "to" Search Console or GA4."""
+
+    SEARCH_CONSOLE = "search_console"
+    GA4 = "ga4"
+
+
 class MediaKind(StrEnum):
     IMAGE = "image"
     VIDEO = "video"

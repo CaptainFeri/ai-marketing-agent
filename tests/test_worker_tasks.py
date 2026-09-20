@@ -275,6 +275,35 @@ def test_queue_depth_is_reportable(package, system_db) -> None:
     assert report_queue_depth() == {"text": 1, "media": 0}
 
 
+def test_the_daily_metrics_sweep_covers_every_active_workspace(
+    tenant_factory, system_db
+) -> None:
+    """No credential configured anywhere — this is about the sweep finding
+    every workspace and calling through without error; the actual pulling
+    and matching logic is tests/test_analytics.py's job, where an injected
+    mock client makes it possible to test without a live Google API."""
+    from app.worker.tasks.maintenance import pull_daily_metrics
+
+    tenant_factory("one")
+    tenant_factory("two")
+    system_db.commit()
+
+    result = pull_daily_metrics()
+    assert result == {"workspaces": 2, "snapshots": 0}
+
+
+def test_the_daily_metrics_sweep_skips_an_inactive_workspace(
+    tenant_factory, system_db
+) -> None:
+    from app.worker.tasks.maintenance import pull_daily_metrics
+
+    _, workspace = tenant_factory("one")
+    workspace.is_active = False
+    system_db.commit()
+
+    assert pull_daily_metrics() == {"workspaces": 0, "snapshots": 0}
+
+
 def test_an_unknown_package_id_is_reported_clearly(package) -> None:
     from app.core.errors import NotFoundError
 

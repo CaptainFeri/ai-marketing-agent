@@ -641,6 +641,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/analytics-credentials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Credentials */
+        get: operations["list_credentials_api_v1_workspaces__workspace_id__analytics_credentials_get"];
+        put?: never;
+        /**
+         * Create Credential
+         * @description Store one analytics credential, encrypted.
+         *
+         *     Restricted to admins, the same bar ``POST .../credentials`` sets for a
+         *     publish credential — a Google service account key is just as sensitive
+         *     as a WordPress application password.
+         */
+        post: operations["create_credential_api_v1_workspaces__workspace_id__analytics_credentials_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/analytics-credentials/{credential_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Deactivate Credential */
+        delete: operations["deactivate_credential_api_v1_workspaces__workspace_id__analytics_credentials__credential_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/workspaces/{workspace_id}/analytics-credentials/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pull Now
+         * @description Backfill one day's metrics on demand, run inline.
+         *
+         *     Not queued: this is an operator re-running a day the nightly sweep
+         *     missed, one workspace at a time — small, occasional, and the caller
+         *     wants to see the result immediately rather than poll for it.
+         */
+        post: operations["pull_now_api_v1_workspaces__workspace_id__analytics_credentials_pull_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/{package_id}/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Package Metrics
+         * @description The basic dashboard view (handoff section 7): every daily snapshot
+         *     recorded for any of this package's publications, newest first.
+         */
+        get: operations["get_package_metrics_api_v1_packages__package_id__metrics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -679,6 +766,60 @@ export interface components {
             /** Accepted */
             accepted: string[];
         };
+        /** AnalyticsCredentialCreate */
+        AnalyticsCredentialCreate: {
+            provider: components["schemas"]["AnalyticsProvider"];
+            /**
+             * Label
+             * @default default
+             */
+            label: string;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+            /** Public Metadata */
+            public_metadata?: {
+                [key: string]: unknown;
+            };
+        };
+        /** AnalyticsCredentialOut */
+        AnalyticsCredentialOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Workspace Id
+             * Format: uuid
+             */
+            workspace_id: string;
+            provider: components["schemas"]["AnalyticsProvider"];
+            /** Label */
+            label: string;
+            /** Public Metadata */
+            public_metadata: {
+                [key: string]: unknown;
+            };
+            /** Is Active */
+            is_active: boolean;
+            /** Last Used At */
+            last_used_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /**
+         * AnalyticsProvider
+         * @description Handoff section 7 (weeks 7-8): a read-only measurement source, not a
+         *     publish target — kept separate from ``Channel`` since a publication can
+         *     never be posted "to" Search Console or GA4.
+         * @enum {string}
+         */
+        AnalyticsProvider: "search_console" | "ga4";
         /**
          * AnswersUpdate
          * @description A partial save. Only the questions present are touched.
@@ -980,6 +1121,36 @@ export interface components {
             workspace_id: string | null;
             role: components["schemas"]["Role"];
         };
+        /** MetricSnapshotOut */
+        MetricSnapshotOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Publication Id
+             * Format: uuid
+             */
+            publication_id: string;
+            /** Source */
+            source: string;
+            /**
+             * Captured For
+             * Format: date-time
+             */
+            captured_for: string;
+            /** Impressions */
+            impressions: number | null;
+            /** Clicks */
+            clicks: number | null;
+            /** Position */
+            position: number | null;
+            /** Metrics */
+            metrics: {
+                [key: string]: unknown;
+            };
+        };
         /** PackageCreate */
         PackageCreate: {
             /**
@@ -1040,6 +1211,16 @@ export interface components {
             variants?: components["schemas"]["VariantOut"][];
             /** Media Assets */
             media_assets?: components["schemas"]["MediaAssetOut"][];
+        };
+        /** PackageMetricsOut */
+        PackageMetricsOut: {
+            /**
+             * Package Id
+             * Format: uuid
+             */
+            package_id: string;
+            /** Snapshots */
+            snapshots: components["schemas"]["MetricSnapshotOut"][];
         };
         /** PackageOut */
         PackageOut: {
@@ -1188,6 +1369,15 @@ export interface components {
          * @enum {string}
          */
         PublicationStatus: "scheduled" | "publishing" | "published" | "failed" | "cancelled";
+        /**
+         * PullMetricsRequest
+         * @description Manual trigger for a single day — the daily sweep uses "yesterday"
+         *     itself; this is for an operator backfilling a day it missed.
+         */
+        PullMetricsRequest: {
+            /** Day */
+            day?: string | null;
+        };
         /**
          * QuestionnaireState
          * @description The catalogue and the draft together — one call to render the wizard.
@@ -2819,6 +3009,170 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_credentials_api_v1_workspaces__workspace_id__analytics_credentials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsCredentialOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_credential_api_v1_workspaces__workspace_id__analytics_credentials_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalyticsCredentialCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsCredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_credential_api_v1_workspaces__workspace_id__analytics_credentials__credential_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                credential_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pull_now_api_v1_workspaces__workspace_id__analytics_credentials_pull_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PullMetricsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_package_metrics_api_v1_packages__package_id__metrics_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageMetricsOut"];
                 };
             };
             /** @description Validation Error */
