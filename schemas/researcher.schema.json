@@ -1,0 +1,235 @@
+{
+  "$defs": {
+    "Claim": {
+      "additionalProperties": false,
+      "description": "A factual statement together with where it came from.\n\nHandoff section 13 lists unsourced claims as a main risk: \"every statistic\nneeds a source and QA checks it\".  This type is how that rule is carried\nthrough the pipeline — the writer may only use claims the researcher\nsourced, and QA rejects any that lost their source on the way.",
+      "properties": {
+        "id": {
+          "description": "Referenced later as claim_id",
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "statement": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "source_url": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Source Url",
+          "type": "string"
+        },
+        "source_title": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Title"
+        },
+        "published_on": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published On"
+        },
+        "confidence": {
+          "default": 0.7,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "source_url"
+      ],
+      "title": "Claim",
+      "type": "object"
+    },
+    "CompetitorFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "maxLength": 2048,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "angle": {
+          "default": "",
+          "description": "How they cover the topic",
+          "maxLength": 500,
+          "title": "Angle",
+          "type": "string"
+        },
+        "gaps": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Gaps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "CompetitorFinding",
+      "type": "object"
+    },
+    "KeywordCandidate": {
+      "additionalProperties": false,
+      "description": "Researched per language, never translated (decision D3).",
+      "properties": {
+        "term": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Term",
+          "type": "string"
+        },
+        "locale": {
+          "enum": [
+            "fa",
+            "en",
+            "ar"
+          ],
+          "title": "Locale",
+          "type": "string"
+        },
+        "intent": {
+          "default": "informational",
+          "enum": [
+            "informational",
+            "commercial",
+            "transactional",
+            "navigational"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "demand_hint": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Demand Hint",
+          "type": "number"
+        },
+        "difficulty_hint": {
+          "default": 0.5,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Difficulty Hint",
+          "type": "number"
+        },
+        "is_primary": {
+          "default": false,
+          "title": "Is Primary",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "term",
+        "locale"
+      ],
+      "title": "KeywordCandidate",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "پژوهشگر — gathers keywords, sourced facts and competitor context.",
+  "properties": {
+    "summary": {
+      "maxLength": 3000,
+      "minLength": 1,
+      "title": "Summary",
+      "type": "string"
+    },
+    "keywords": {
+      "items": {
+        "$ref": "#/$defs/KeywordCandidate"
+      },
+      "maxItems": 40,
+      "minItems": 1,
+      "title": "Keywords",
+      "type": "array"
+    },
+    "audience_questions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Audience Questions",
+      "type": "array"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/Claim"
+      },
+      "maxItems": 30,
+      "title": "Claims",
+      "type": "array"
+    },
+    "competitors": {
+      "items": {
+        "$ref": "#/$defs/CompetitorFinding"
+      },
+      "maxItems": 10,
+      "title": "Competitors",
+      "type": "array"
+    },
+    "entities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Entities",
+      "type": "array"
+    },
+    "open_questions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Open Questions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "summary",
+    "keywords"
+  ],
+  "title": "ResearchOutput",
+  "type": "object"
+}

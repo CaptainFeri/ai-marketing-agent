@@ -66,6 +66,13 @@ jobs:
       - name: Type check
         run: mypy app
 
+      - name: Agent schemas are up to date
+        # The committed files are what the prompts and the panel read; a stale
+        # one is a contract nobody is actually enforcing.
+        run: |
+          python scripts/export_schemas.py
+          git diff --exit-code schemas/
+
       - name: Test
         run: pytest -q --cov=app --cov-report=term-missing
 

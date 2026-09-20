@@ -15,6 +15,7 @@ from app.worker.dispatcher import (
     complete_job,
     fail_job,
     reclaim_expired_leases,
+    record_switch,
     start_job,
 )
 from app.worker.gpu_runtime import get_runtime
@@ -47,6 +48,11 @@ def dispatch() -> dict:
     runtime = get_runtime()
     # One model load for the whole batch — the point of batching (section 6).
     switch_seconds = runtime.ensure_window(window, kind)
+    if switch_seconds > 0:
+        # Feed the real cost back: the scheduler batches against it from here
+        # on, replacing whatever the hardware probe estimated at install.
+        with system_session() as session:
+            record_switch(session, switch_seconds)
 
     succeeded = failed = 0
     for job_id in job_ids:

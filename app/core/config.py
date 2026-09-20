@@ -86,8 +86,21 @@ class Settings(BaseSettings):
     # Heavy video work only runs inside this window (local server time).
     gpu_night_window_start_hour: int = 1
     gpu_night_window_end_hour: int = 7
+    # Turned off when the card has too little VRAM for Wan 2.2, so nothing
+    # queues work that can never run.  See app/services/tuning.py.
+    gpu_nightly_video_enabled: bool = True
     # How long a leased job may stay silent before the lease is reclaimed.
     gpu_lease_timeout_seconds: int = 3600
+
+    # "simulated" runs the whole platform with no model weights present, which
+    # is what phase 0 and phase 1 development use.  Any other value expects a
+    # real runtime and fails loudly until phase 0 delivers one.
+    gpu_runtime: str = "simulated"
+    # How much faster than real time the simulator runs.
+    gpu_simulation_speedup: float = 600.0
+
+    # Worker processes on the CPU queues.  The GPU queue is always 1.
+    celery_cpu_concurrency: int = 4
 
     # ---- pipeline ------------------------------------------------------
     qa_max_retries: int = 2

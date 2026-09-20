@@ -1,0 +1,183 @@
+{
+  "$defs": {
+    "ImageAlt": {
+      "additionalProperties": false,
+      "properties": {
+        "slot": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Slot",
+          "type": "string"
+        },
+        "alt_text": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Alt Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "slot",
+        "alt_text"
+      ],
+      "title": "ImageAlt",
+      "type": "object"
+    },
+    "LinkSuggestion": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Anchor",
+          "type": "string"
+        },
+        "target": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        }
+      },
+      "required": [
+        "anchor",
+        "target"
+      ],
+      "title": "LinkSuggestion",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Heading",
+          "type": "string"
+        },
+        "level": {
+          "default": 2,
+          "maximum": 4,
+          "minimum": 2,
+          "title": "Level",
+          "type": "integer"
+        },
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "body"
+      ],
+      "title": "Section",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "بهینه‌ساز SEO — the fields the WordPress connector fills into Yoast or Rank Math.",
+  "properties": {
+    "meta_title": {
+      "maxLength": 70,
+      "minLength": 1,
+      "title": "Meta Title",
+      "type": "string"
+    },
+    "meta_description": {
+      "maxLength": 180,
+      "minLength": 1,
+      "title": "Meta Description",
+      "type": "string"
+    },
+    "slug": {
+      "maxLength": 120,
+      "minLength": 1,
+      "title": "Slug",
+      "type": "string"
+    },
+    "h1": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "H1",
+      "type": "string"
+    },
+    "primary_keyword": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Primary Keyword",
+      "type": "string"
+    },
+    "secondary_keywords": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 15,
+      "title": "Secondary Keywords",
+      "type": "array"
+    },
+    "internal_links": {
+      "items": {
+        "$ref": "#/$defs/LinkSuggestion"
+      },
+      "maxItems": 15,
+      "title": "Internal Links",
+      "type": "array"
+    },
+    "external_links": {
+      "items": {
+        "$ref": "#/$defs/LinkSuggestion"
+      },
+      "maxItems": 10,
+      "title": "External Links",
+      "type": "array"
+    },
+    "image_alts": {
+      "items": {
+        "$ref": "#/$defs/ImageAlt"
+      },
+      "maxItems": 15,
+      "title": "Image Alts",
+      "type": "array"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/Section"
+      },
+      "maxItems": 25,
+      "title": "Sections",
+      "type": "array"
+    },
+    "changes_made": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Changes Made",
+      "type": "array"
+    }
+  },
+  "required": [
+    "meta_title",
+    "meta_description",
+    "slug",
+    "h1",
+    "primary_keyword"
+  ],
+  "title": "SeoOptimizedOutput",
+  "type": "object"
+}

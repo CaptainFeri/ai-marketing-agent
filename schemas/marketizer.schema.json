@@ -1,0 +1,250 @@
+{
+  "$defs": {
+    "ChannelVariant": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "enum": [
+            "wordpress",
+            "telegram",
+            "instagram",
+            "linkedin",
+            "x",
+            "youtube",
+            "aparat"
+          ],
+          "title": "Channel",
+          "type": "string"
+        },
+        "ab_label": {
+          "anyOf": [
+            {
+              "enum": [
+                "a",
+                "b"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ab Label"
+        },
+        "hook": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Hook",
+          "type": "string"
+        },
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        },
+        "hashtags": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 30,
+          "title": "Hashtags",
+          "type": "array"
+        },
+        "call_to_action": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Call To Action"
+        },
+        "visual_brief": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/VisualBrief"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "channel",
+        "hook",
+        "body"
+      ],
+      "title": "ChannelVariant",
+      "type": "object"
+    },
+    "ScriptBeat": {
+      "additionalProperties": false,
+      "description": "One spoken beat of a video script (handoff section 8).",
+      "properties": {
+        "text": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "seconds": {
+          "default": 5.0,
+          "exclusiveMinimum": 0,
+          "maximum": 120,
+          "title": "Seconds",
+          "type": "number"
+        },
+        "visual_cue": {
+          "anyOf": [
+            {
+              "maxLength": 300,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Visual Cue"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ScriptBeat",
+      "type": "object"
+    },
+    "VisualBrief": {
+      "additionalProperties": false,
+      "description": "What the image and video models are asked for.\n\n``overlay_text`` is separate from ``scene`` on purpose: FLUX mangles\nPersian and Arabic script, so type is rendered over the image from an HTML\ntemplate rather than generated into it (handoff section 5).",
+      "properties": {
+        "scene": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Scene",
+          "type": "string"
+        },
+        "style_keywords": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 15,
+          "title": "Style Keywords",
+          "type": "array"
+        },
+        "palette": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Palette",
+          "type": "array"
+        },
+        "aspect_ratio": {
+          "default": "1:1",
+          "enum": [
+            "1:1",
+            "4:5",
+            "16:9",
+            "9:16"
+          ],
+          "title": "Aspect Ratio",
+          "type": "string"
+        },
+        "render_text_separately": {
+          "default": true,
+          "title": "Render Text Separately",
+          "type": "boolean"
+        },
+        "overlay_text": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Overlay Text"
+        },
+        "negative_prompt": {
+          "anyOf": [
+            {
+              "maxLength": 500,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Negative Prompt"
+        }
+      },
+      "required": [
+        "scene"
+      ],
+      "title": "VisualBrief",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "بازاریابی‌ساز — turns one article into per-channel posts.",
+  "properties": {
+    "variants": {
+      "items": {
+        "$ref": "#/$defs/ChannelVariant"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Variants",
+      "type": "array"
+    },
+    "default_visual_brief": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VisualBrief"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "video_script": {
+      "items": {
+        "$ref": "#/$defs/ScriptBeat"
+      },
+      "maxItems": 40,
+      "title": "Video Script",
+      "type": "array"
+    },
+    "utm_campaign": {
+      "anyOf": [
+        {
+          "maxLength": 120,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Utm Campaign"
+    }
+  },
+  "required": [
+    "variants"
+  ],
+  "title": "MarketizedOutput",
+  "type": "object"
+}

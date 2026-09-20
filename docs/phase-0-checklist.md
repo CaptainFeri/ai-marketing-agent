@@ -13,22 +13,26 @@ the runtime with real adapters as each model is validated.
 - [ ] NVIDIA driver, CUDA and Docker on the server
 - [ ] `docker compose up -d postgres redis minio` and `alembic upgrade head`
 - [ ] Confirm `pgvector` is present (the compose image has it)
-- [ ] Record the server's actual RAM, CPU and disk — section 12 lists this as
-      an open question, and window switching depends on it
+- [x] Record the server's actual RAM, CPU and disk — run `make analyze` on the
+      box. It probes them and derives the configuration; section 12's open
+      question is answered by its output.
 
 ## Language model
 
 - [ ] vLLM with Qwen3-30B-A3B (4-bit) and with Qwen3-14B
 - [ ] Five sample prompts per language (fa/en/ar), compared side by side
-- [ ] **Measure the sleep/wake cycle time** and put it in
-      `GPU_WINDOW_SWITCH_SECONDS`; if sleep proves unstable, measure a full
-      stop/start instead and note which one is in use
+- [ ] **Measure the sleep/wake cycle time.** `make analyze` estimates it and
+      the running system corrects it after three real switches, but the first
+      deliberate measurement belongs here — and decides whether sleep level 1,
+      sleep level 2 or a full restart is the strategy
 - [ ] Measure the LLM ↔ FLUX switch specifically — it is the switch the
       scheduler makes most often
 
 ## Text pipeline
 
-- [ ] JSON Schema for each of the six text agents and the marketizer
+- [x] JSON Schema for each of the six text agents and the marketizer — done,
+      see `schemas/` and `docs/agent-contracts.md`. Hand `json_schema_for(step)`
+      to vLLM as a guided decoding constraint.
 - [ ] A script from brand brief to `article.json`
 - [ ] Ten trial articles per language
 - [ ] **Acceptance: at least 7 of 10 per language rated "publishable with minor
