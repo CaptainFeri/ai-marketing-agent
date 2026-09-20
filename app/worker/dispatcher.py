@@ -128,6 +128,62 @@ def _consumed_today(session: Session, day: date) -> dict[uuid.UUID, float]:
     return {row[0]: float(row[1]) for row in rows}
 
 
+#: Below this many samples the measured average is too noisy to batch against.
+MIN_SWITCH_SAMPLES = 3
+
+#: Weight of a new switch measurement in the running average.
+SWITCH_EWMA_ALPHA = 0.25
+
+
+def measured_switch_seconds(session: Session) -> float | None:
+    """The observed cost of a window switch, once there is enough evidence.
+
+    ``app.services.tuning`` estimates this from the hardware at install time;
+    this is the number that replaces the estimate in operation.
+    """
+    state = session.scalars(select(GpuWindowState).limit(1)).one_or_none()
+    if state is None or state.switch_samples < MIN_SWITCH_SAMPLES:
+        return None
+    return state.ewma_switch_seconds
+
+
+def record_switch(session: Session, seconds: float) -> None:
+    """Fold a measured switch into the running average."""
+    if seconds <= 0:
+        return
+    state = _window_state(session)
+    state.last_switch_seconds = seconds
+    if state.ewma_switch_seconds is None:
+        state.ewma_switch_seconds = seconds
+    else:
+        state.ewma_switch_seconds = (
+            SWITCH_EWMA_ALPHA * seconds + (1 - SWITCH_EWMA_ALPHA) * state.ewma_switch_seconds
+        )
+    state.switch_samples += 1
+
+
+def effective_scheduler_config(session: Session) -> SchedulerConfig:
+    """The scheduler's settings, with the measured switch cost applied.
+
+    A switch that turns out to cost two minutes rather than forty seconds
+    means batches should be roughly three times longer; leaving the configured
+    estimate in place would spend the day reloading models.
+    """
+    measured = measured_switch_seconds(session)
+    if measured is None:
+        return SchedulerConfig()
+    from app.services.tuning import TARGET_SWITCH_OVERHEAD
+
+    batch_seconds = min(
+        3600.0,
+        max(600.0, measured * (1 - TARGET_SWITCH_OVERHEAD) / TARGET_SWITCH_OVERHEAD),
+    )
+    return SchedulerConfig(
+        max_batch_seconds=batch_seconds,
+        window_starvation_seconds=max(1800.0, batch_seconds * 2),
+    )
+
+
 def claim_next_batch(
     session: Session,
     worker_id: str,
@@ -145,6 +201,7 @@ def claim_next_batch(
     if not pending:
         return None
 
+    config = config or effective_scheduler_config(session)
     state = _window_state(session)
     batch = select_batch(
         [
@@ -197,7 +254,6 @@ def claim_next_batch(
     if batch.switch_required:
         state.switched_at = now
         state.switch_count_today += 1
-        state.last_switch_seconds = float(settings.gpu_window_switch_seconds)
     state.current_window = batch.window
     state.current_kind = batch.kind
 

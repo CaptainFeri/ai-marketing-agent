@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "PlannedTopic": {
+      "additionalProperties": false,
+      "properties": {
+        "title": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "locale": {
+          "enum": [
+            "fa",
+            "en",
+            "ar"
+          ],
+          "title": "Locale",
+          "type": "string"
+        },
+        "pillar": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pillar"
+        },
+        "keywords": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 15,
+          "title": "Keywords",
+          "type": "array"
+        },
+        "intent": {
+          "default": "informational",
+          "enum": [
+            "informational",
+            "commercial",
+            "transactional",
+            "navigational"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "funnel_stage": {
+          "default": "awareness",
+          "enum": [
+            "awareness",
+            "consideration",
+            "decision",
+            "retention"
+          ],
+          "title": "Funnel Stage",
+          "type": "string"
+        },
+        "priority": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Priority",
+          "type": "integer"
+        },
+        "planned_for": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planned For"
+        },
+        "rationale": {
+          "default": "",
+          "maxLength": 1000,
+          "title": "Rationale",
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "locale"
+      ],
+      "title": "PlannedTopic",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "برنامه‌ریز تقویم موضوعی — fills the editorial calendar.",
+  "properties": {
+    "topics": {
+      "items": {
+        "$ref": "#/$defs/PlannedTopic"
+      },
+      "maxItems": 60,
+      "minItems": 1,
+      "title": "Topics",
+      "type": "array"
+    },
+    "coverage_notes": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Coverage Notes",
+      "type": "string"
+    }
+  },
+  "required": [
+    "topics"
+  ],
+  "title": "TopicPlanOutput",
+  "type": "object"
+}

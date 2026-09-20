@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "QaIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "enum": [
+            "blocker",
+            "major",
+            "minor"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "factual",
+            "unsourced_claim",
+            "brand_voice",
+            "readability",
+            "structure",
+            "seo",
+            "geo",
+            "language",
+            "plagiarism_risk"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "location": {
+          "default": "",
+          "description": "Heading or excerpt",
+          "maxLength": 300,
+          "title": "Location",
+          "type": "string"
+        },
+        "description": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "suggestion": {
+          "anyOf": [
+            {
+              "maxLength": 1000,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Suggestion"
+        }
+      },
+      "required": [
+        "severity",
+        "category",
+        "description"
+      ],
+      "title": "QaIssue",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "QA — the gate before a human ever sees the draft.\n\n``score`` drives the retry loop in ``app.services.packages``: below the\nthreshold the package returns to the writer, at most ``QA_MAX_RETRIES``\ntimes, and then goes to a person regardless.",
+  "properties": {
+    "score": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Score",
+      "type": "number"
+    },
+    "verdict": {
+      "enum": [
+        "pass",
+        "revise",
+        "escalate"
+      ],
+      "title": "Verdict",
+      "type": "string"
+    },
+    "issues": {
+      "items": {
+        "$ref": "#/$defs/QaIssue"
+      },
+      "maxItems": 40,
+      "title": "Issues",
+      "type": "array"
+    },
+    "unsourced_claims": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Unsourced Claims",
+      "type": "array"
+    },
+    "brand_voice_match": {
+      "default": 0.5,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Brand Voice Match",
+      "type": "number"
+    },
+    "readability": {
+      "default": 0.5,
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Readability",
+      "type": "number"
+    },
+    "language_is_correct": {
+      "default": true,
+      "title": "Language Is Correct",
+      "type": "boolean"
+    },
+    "summary": {
+      "default": "",
+      "maxLength": 2000,
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "score",
+    "verdict"
+  ],
+  "title": "QaReport",
+  "type": "object"
+}

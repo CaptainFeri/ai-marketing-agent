@@ -121,11 +121,9 @@ def get_runtime() -> GpuRuntime:
 
 
 def build_runtime(name: str | None = None) -> GpuRuntime:
-    import os
-
-    name = name or os.getenv("GPU_RUNTIME", "simulated")
+    name = name or settings.gpu_runtime
     if name == "simulated":
-        return SimulatedGpuRuntime(speedup=float(os.getenv("GPU_SIMULATION_SPEEDUP", "600")))
+        return SimulatedGpuRuntime(speedup=settings.gpu_simulation_speedup)
     return UnavailableGpuRuntime()
 
 

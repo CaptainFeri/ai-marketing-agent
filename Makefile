@@ -1,4 +1,4 @@
-.PHONY: help install lint format typecheck test test-cov migrate revision run worker beat db-up db-down
+.PHONY: help install lint format typecheck test test-cov migrate revision run worker beat db-up db-down analyze schemas
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -43,3 +43,9 @@ db-up:  ## Start a local PostgreSQL for development and tests
 
 db-down:  ## Stop it
 	./scripts/dev_postgres.sh stop
+
+analyze:  ## Probe this machine and print the configuration it implies
+	.venv/bin/python scripts/analyze_platform.py --benchmark
+
+schemas:  ## Regenerate schemas/ from app/agents/contracts.py
+	.venv/bin/python scripts/export_schemas.py

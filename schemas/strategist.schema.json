@@ -1,0 +1,148 @@
+{
+  "$defs": {
+    "OutlineSection": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Heading",
+          "type": "string"
+        },
+        "level": {
+          "default": 2,
+          "maximum": 4,
+          "minimum": 2,
+          "title": "Level",
+          "type": "integer"
+        },
+        "intent": {
+          "default": "",
+          "maxLength": 300,
+          "title": "Intent",
+          "type": "string"
+        },
+        "talking_points": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Talking Points",
+          "type": "array"
+        },
+        "target_keywords": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Target Keywords",
+          "type": "array"
+        }
+      },
+      "required": [
+        "heading"
+      ],
+      "title": "OutlineSection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "استراتژیست — decides the angle and the shape of the article.",
+  "properties": {
+    "angle": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Angle",
+      "type": "string"
+    },
+    "target_persona": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Target Persona",
+      "type": "string"
+    },
+    "funnel_stage": {
+      "default": "awareness",
+      "enum": [
+        "awareness",
+        "consideration",
+        "decision",
+        "retention"
+      ],
+      "title": "Funnel Stage",
+      "type": "string"
+    },
+    "primary_keyword": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Primary Keyword",
+      "type": "string"
+    },
+    "secondary_keywords": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 15,
+      "title": "Secondary Keywords",
+      "type": "array"
+    },
+    "outline": {
+      "items": {
+        "$ref": "#/$defs/OutlineSection"
+      },
+      "maxItems": 20,
+      "minItems": 1,
+      "title": "Outline",
+      "type": "array"
+    },
+    "differentiators": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Differentiators",
+      "type": "array"
+    },
+    "word_count_target": {
+      "default": 1200,
+      "maximum": 8000,
+      "minimum": 200,
+      "title": "Word Count Target",
+      "type": "integer"
+    },
+    "pillar": {
+      "anyOf": [
+        {
+          "maxLength": 200,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Pillar"
+    },
+    "notes": {
+      "anyOf": [
+        {
+          "maxLength": 2000,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Notes"
+    }
+  },
+  "required": [
+    "angle",
+    "target_persona",
+    "primary_keyword",
+    "outline"
+  ],
+  "title": "StrategyOutput",
+  "type": "object"
+}

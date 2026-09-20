@@ -170,3 +170,10 @@ class GpuWindowState(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     switched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     switch_count_today: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_switch_seconds: Mapped[float | None] = mapped_column(Float)
+    # Measured cost of a switch, learned from operation.  Once there are a few
+    # samples this replaces the estimate ``app.services.tuning`` derived from
+    # the hardware probe, and the scheduler batches against the real number.
+    ewma_switch_seconds: Mapped[float | None] = mapped_column(Float)
+    switch_samples: Mapped[int] = mapped_column(
+        Integer, default=0, server_default="0", nullable=False
+    )

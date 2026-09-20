@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Heading",
+          "type": "string"
+        },
+        "level": {
+          "default": 2,
+          "maximum": 4,
+          "minimum": 2,
+          "title": "Level",
+          "type": "integer"
+        },
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "body"
+      ],
+      "title": "Section",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "نویسنده — writes the article itself.",
+  "properties": {
+    "title": {
+      "maxLength": 300,
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "excerpt": {
+      "maxLength": 500,
+      "minLength": 1,
+      "title": "Excerpt",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/Section"
+      },
+      "maxItems": 25,
+      "minItems": 1,
+      "title": "Sections",
+      "type": "array"
+    },
+    "claim_ids_used": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Claim Ids Used",
+      "type": "array"
+    },
+    "call_to_action": {
+      "anyOf": [
+        {
+          "maxLength": 500,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Call To Action"
+    },
+    "word_count": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Word Count",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "title",
+    "excerpt",
+    "sections"
+  ],
+  "title": "DraftOutput",
+  "type": "object"
+}

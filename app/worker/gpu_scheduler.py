@@ -56,6 +56,9 @@ class SchedulerConfig:
     window_starvation_seconds: float = float(settings.gpu_window_starvation_seconds)
     night_start_hour: int = settings.gpu_night_window_start_hour
     night_end_hour: int = settings.gpu_night_window_end_hour
+    #: False on a card too small for Wan 2.2: nightly jobs never become
+    #: eligible, rather than waiting for a window that cannot run them.
+    nightly_video_enabled: bool = settings.gpu_nightly_video_enabled
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,8 @@ def in_night_window(now: datetime, config: SchedulerConfig) -> bool:
 def _eligible(
     jobs: list[SchedulableJob], now: datetime, config: SchedulerConfig
 ) -> list[SchedulableJob]:
+    if not config.nightly_video_enabled:
+        return [job for job in jobs if not job.nightly_only]
     night = in_night_window(now, config)
     return [job for job in jobs if night or not job.nightly_only]
 

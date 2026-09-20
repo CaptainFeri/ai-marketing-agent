@@ -27,6 +27,8 @@ everything else is built on:
 | GPU scheduler: two windows, batching by model, fair rotation, night work | `app/worker/gpu_scheduler.py`, `app/worker/dispatcher.py` |
 | Quota mechanism: measured `gpu_seconds` → moving average → daily per-tenant share | `app/services/quota.py` |
 | Content package state machine and the two human gates | `app/services/packages.py` |
+| JSON Schema contracts for all eight agents, used as both a decoding constraint and a check | `app/agents/`, `schemas/` |
+| Hardware probe and automatic configuration, self-correcting from measured switch times | `app/core/platform.py`, `app/services/tuning.py` |
 
 **Not built yet**, and deliberately so:
 
@@ -36,7 +38,9 @@ everything else is built on:
   runs the whole platform end to end without weights present, with plausible
   timings, so everything above is exercisable today. Setting any other value
   currently fails loudly rather than producing placeholder content.
-- **The agent prompts and their JSON schemas** (phase 1, weeks 3–4).
+- **The agent prompts themselves.** Their output contracts are done (see
+  [`docs/agent-contracts.md`](docs/agent-contracts.md)); the prompts that
+  produce those shapes are phase 1, weeks 3–4.
 - **Channel connectors** — WordPress and Telegram are phase 1 weeks 7–8.
 - **The Next.js panel.**
 
@@ -63,6 +67,17 @@ make migrate
 make test
 make run                      # http://localhost:8000/docs
 ```
+
+### Before you hand-tune anything
+
+```bash
+make analyze
+```
+
+It probes the GPU, RAM, disk and CPU, picks the models that fit, works out how
+the GPU should switch between its two windows, and prints the settings that
+follow — with the reasoning for each. See
+[`docs/platform-tuning.md`](docs/platform-tuning.md).
 
 The test suite needs a real PostgreSQL: row level security is the thing under
 test, and no in-memory substitute has it. `make db-up` provides one; the tests
@@ -122,6 +137,8 @@ every allocation by moving one number.
 Further reading:
 
 - [`docs/architecture.md`](docs/architecture.md) — how each handoff decision landed in code
+- [`docs/agent-contracts.md`](docs/agent-contracts.md) — the eight agent output schemas
+- [`docs/platform-tuning.md`](docs/platform-tuning.md) — hardware probing and automatic configuration
 - [`docs/gpu-scheduling.md`](docs/gpu-scheduling.md) — the scheduler and the quota mechanism in detail
 - [`docs/deployment.md`](docs/deployment.md) — database roles, secrets, backups
 - [`docs/phase-0-checklist.md`](docs/phase-0-checklist.md) — what has to be measured before the model adapters are written
@@ -152,6 +169,6 @@ make test-cov      # with coverage
 make revision m="add publication retry columns"
 ```
 
-119 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
+218 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
 ledger should arrive with tests — those three are where a quiet bug is most
 expensive.

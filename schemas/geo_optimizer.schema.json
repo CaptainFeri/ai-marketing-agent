@@ -1,0 +1,132 @@
+{
+  "$defs": {
+    "AnswerBlock": {
+      "additionalProperties": false,
+      "description": "A self-contained answer an AI engine can lift verbatim.",
+      "properties": {
+        "question": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "answer": {
+          "maxLength": 1200,
+          "minLength": 1,
+          "title": "Answer",
+          "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Claim Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "question",
+        "answer"
+      ],
+      "title": "AnswerBlock",
+      "type": "object"
+    },
+    "Section": {
+      "additionalProperties": false,
+      "properties": {
+        "heading": {
+          "maxLength": 300,
+          "minLength": 1,
+          "title": "Heading",
+          "type": "string"
+        },
+        "level": {
+          "default": 2,
+          "maximum": 4,
+          "minimum": 2,
+          "title": "Level",
+          "type": "integer"
+        },
+        "body": {
+          "minLength": 1,
+          "title": "Body",
+          "type": "string"
+        }
+      },
+      "required": [
+        "heading",
+        "body"
+      ],
+      "title": "Section",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "بهینه‌ساز GEO — makes the piece quotable by generative search.",
+  "properties": {
+    "answer_blocks": {
+      "items": {
+        "$ref": "#/$defs/AnswerBlock"
+      },
+      "maxItems": 15,
+      "title": "Answer Blocks",
+      "type": "array"
+    },
+    "faq": {
+      "items": {
+        "$ref": "#/$defs/AnswerBlock"
+      },
+      "maxItems": 15,
+      "title": "Faq",
+      "type": "array"
+    },
+    "key_takeaways": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Key Takeaways",
+      "type": "array"
+    },
+    "brand_mentions": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Brand Mentions",
+      "type": "array"
+    },
+    "entities": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 30,
+      "title": "Entities",
+      "type": "array"
+    },
+    "schema_org": {
+      "additionalProperties": true,
+      "title": "Schema Org",
+      "type": "object"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/Section"
+      },
+      "maxItems": 25,
+      "title": "Sections",
+      "type": "array"
+    },
+    "changes_made": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Changes Made",
+      "type": "array"
+    }
+  },
+  "title": "GeoOptimizedOutput",
+  "type": "object"
+}
