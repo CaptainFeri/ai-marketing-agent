@@ -4,6 +4,12 @@ Two weeks. The goal is to prove the model quality is acceptable in all three
 languages and that a 3090 Ti carries the load, *before* more product is built
 on top. Handoff section 11.
 
+`scripts/download-models.ps1` fetches every model referenced below from
+Hugging Face into a local `.\models` folder, to copy onto the GPU host
+separately (useful when the box that will run the models has no direct
+internet access). See the script's own `Get-Help .\download-models.ps1 -Full`
+for the option list (LLM variant, skipping video/lip-sync, which Piper voice).
+
 The platform scaffolding is already in place, so phase 0 can use it: run with
 `GPU_RUNTIME=simulated` to exercise the queue and the accounting, and replace
 the runtime with real adapters as each model is validated.
