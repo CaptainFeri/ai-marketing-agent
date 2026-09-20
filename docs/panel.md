@@ -80,6 +80,11 @@ fa/en/ar labels per question.
   editable, only deactivated, so an audit trail of what published survives.
 - `/workspaces/{id}/quota` — today's GPU allocation and what it still buys,
   from `GET /gpu/quota`.
+- `/workspaces/{id}/analytics` — create and deactivate Search Console/GA4
+  credentials (a pasted Google service account key), and a manual "pull now"
+  for backfilling a day the nightly sweep missed. See `docs/analytics.md`.
+  The package detail page's own metrics table (`GET
+  /packages/{id}/metrics`) is the "basic dashboard" the handoff asks for.
 
 ## Running it locally
 

@@ -66,6 +66,13 @@ celery_app.conf.update(
             "schedule": 60.0,
             "options": {"queue": Queue.PUBLISH.value, "expires": 55},
         },
+        # Handoff section 7: yesterday's Search Console/GA4 numbers, once a
+        # day — well after most publish activity has settled.
+        "pull-daily-metrics": {
+            "task": "maintenance.pull_daily_metrics",
+            "schedule": crontab(hour="6", minute="0"),
+            "options": {"queue": Queue.MAINTENANCE.value},
+        },
     },
 )
 

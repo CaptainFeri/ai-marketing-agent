@@ -44,9 +44,17 @@ TENANT_TABLES: tuple[str, ...] = (
     "publication",
     "metric_snapshot",
     "channel_credential",
+    # analytics_credential is added in 0007 with its own policy; it appears
+    # in TENANT_SCOPED_TABLES, so the drift test looks for it here too.
+    "analytics_credential",
     "gpu_job",
     "gpu_quota_ledger",
 )
+
+#: Tables in TENANT_TABLES that a later migration creates and polices
+#: itself — present only so the drift check in test_tenant_isolation.py
+#: sees them, never touched by this migration's own DDL loops.
+_CREATED_LATER = frozenset({"brief_draft", "analytics_credential"})
 
 POLICY_NAME = "tenant_isolation"
 
@@ -66,10 +74,7 @@ def upgrade() -> None:
     )
 
     for table in TENANT_TABLES:
-        if table == "brief_draft":
-            # The table itself does not exist until 0005, which applies its
-            # own identical policy there — it stays in TENANT_TABLES only so
-            # the drift check against TENANT_SCOPED_TABLES sees it.
+        if table in _CREATED_LATER:
             continue
         op.execute(f"ALTER TABLE {table} ENABLE ROW LEVEL SECURITY")
         op.execute(f"ALTER TABLE {table} FORCE ROW LEVEL SECURITY")
@@ -91,7 +96,7 @@ def downgrade() -> None:
     op.execute("ALTER TABLE tenant DISABLE ROW LEVEL SECURITY")
 
     for table in reversed(TENANT_TABLES):
-        if table == "brief_draft":
+        if table in _CREATED_LATER:
             continue  # see the matching skip in upgrade()
         op.execute(f"DROP POLICY IF EXISTS {POLICY_NAME} ON {table}")
         op.execute(f"ALTER TABLE {table} NO FORCE ROW LEVEL SECURITY")

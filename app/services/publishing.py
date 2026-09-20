@@ -24,9 +24,10 @@ from sqlalchemy.orm import Session
 
 from app.connectors import ConnectorError, MediaForPublish, PublishContent, build_connector
 from app.core.errors import InvalidStateError, NotFoundError
-from app.db.enums import MediaKind, PublicationStatus
+from app.db.enums import MediaKind, PackageStatus, PublicationStatus
 from app.db.models import ContentPackage, MediaAsset, Publication, Variant
 from app.services import channel_credentials, storage
+from app.services import packages as package_service
 
 logger = logging.getLogger(__name__)
 
@@ -179,6 +180,12 @@ def attempt(session: Session, publication: Publication) -> Publication:
     publication.external_id = result.external_id
     publication.external_url = result.external_url
     publication.last_error = None
+    # The package-wide status only tracks "has this gone out anywhere yet",
+    # not per-channel state — the first publication to succeed is what
+    # starts the measuring stage (handoff section 3, step 7), the same
+    # coarseness the rest of the seven-stage state machine already uses.
+    if package.status is PackageStatus.SCHEDULED:
+        package_service.transition(package, PackageStatus.PUBLISHED)
     logger.info(
         "publication succeeded",
         extra={

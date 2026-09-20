@@ -267,6 +267,8 @@ export default function PackageDetailPage() {
           )
         }
       />
+
+      {publications.length > 0 ? <MetricsPanel packageId={packageId} /> : null}
     </div>
   );
 }
@@ -414,6 +416,66 @@ function PublicationsPanel({
           </div>
         ))}
       </div>
+    </Card>
+  );
+}
+
+type MetricSnapshot = components["schemas"]["MetricSnapshotOut"];
+
+function MetricsPanel({ packageId }: { packageId: string }) {
+  const { t } = useLocale();
+  const [snapshots, setSnapshots] = useState<MetricSnapshot[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .GET("/api/v1/packages/{package_id}/metrics", { params: { path: { package_id: packageId } } })
+      .then((result) => {
+        if (!cancelled) setSnapshots(unwrap(result).snapshots);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : t("common.error"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId, t]);
+
+  return (
+    <Card>
+      <h2 className="mb-2 font-medium">{t("analytics.metrics_title")}</h2>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {snapshots === null && !error ? <Spinner /> : null}
+      {snapshots?.length === 0 ? (
+        <p className="text-sm text-zinc-500">{t("analytics.metrics_empty")}</p>
+      ) : null}
+      {snapshots && snapshots.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-start text-sm">
+            <thead>
+              <tr className="text-xs text-zinc-500">
+                <th className="p-1 text-start">{t("analytics.date")}</th>
+                <th className="p-1 text-start">{t("analytics.source")}</th>
+                <th className="p-1 text-start">{t("analytics.impressions")}</th>
+                <th className="p-1 text-start">{t("analytics.clicks")}</th>
+                <th className="p-1 text-start">{t("analytics.position")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {snapshots.map((snapshot) => (
+                <tr key={snapshot.id} className="border-t border-border">
+                  <td className="p-1">{new Date(snapshot.captured_for).toLocaleDateString()}</td>
+                  <td className="p-1">{snapshot.source}</td>
+                  <td className="p-1">{snapshot.impressions ?? "—"}</td>
+                  <td className="p-1">{snapshot.clicks ?? "—"}</td>
+                  <td className="p-1">{snapshot.position?.toFixed(1) ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </Card>
   );
 }

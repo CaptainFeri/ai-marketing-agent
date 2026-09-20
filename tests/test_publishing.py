@@ -217,6 +217,46 @@ def test_a_successful_attempt_marks_the_publication_published(
     assert publication.attempt_count == 1
 
 
+def test_a_successful_attempt_moves_a_scheduled_package_to_published(
+    system_db, package, variant, monkeypatch
+) -> None:
+    """The package-wide status only tracks "has this gone out anywhere
+    yet" — the first publication to succeed is what starts the measuring
+    stage (handoff section 3, step 7; see app.services.analytics)."""
+    make_credential(system_db, package)
+    publication = publishing.schedule_publication(system_db, package, variant, datetime.now(UTC))
+    package.status = PackageStatus.SCHEDULED
+    system_db.commit()
+
+    monkeypatch.setattr(
+        "app.connectors.wordpress.WordPressConnector.publish",
+        lambda self, content, credential: PublishResult(external_id="7", external_url=None),
+    )
+    publishing.attempt(system_db, publication)
+
+    assert package.status is PackageStatus.PUBLISHED
+
+
+def test_a_package_not_yet_scheduled_is_left_alone_by_a_publish_attempt(
+    system_db, package, variant, monkeypatch
+) -> None:
+    """A package can carry more than one channel variant; a second
+    publication's own success must not re-trigger (or fight) a transition
+    the first one already made."""
+    make_credential(system_db, package)
+    publication = publishing.schedule_publication(system_db, package, variant, datetime.now(UTC))
+    package.status = PackageStatus.PUBLISHED  # as if an earlier publication already moved it
+    system_db.commit()
+
+    monkeypatch.setattr(
+        "app.connectors.wordpress.WordPressConnector.publish",
+        lambda self, content, credential: PublishResult(external_id="7", external_url=None),
+    )
+    publishing.attempt(system_db, publication)
+
+    assert package.status is PackageStatus.PUBLISHED  # unchanged, not re-transitioned
+
+
 def test_a_failed_attempt_stays_scheduled_below_the_limit(
     system_db, package, variant, monkeypatch
 ) -> None:
