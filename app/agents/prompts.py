@@ -189,6 +189,12 @@ PROMPTS: dict[PipelineStep, AgentPrompt] = {
             "- If a video script is needed, write it to be spoken aloud: short "
             "sentences, no parentheses, no abbreviations a narrator would stumble "
             "over.\n"
+            "- For Instagram, decide the post shape: a single image, a carousel "
+            "(2-10 slides, each its own visual_brief and overlay_text, ordered "
+            "so the hook lands on slide one), or a reel (reel_script — the "
+            "spoken/on-screen beats, written the same way a video script is). "
+            "Leave carousel_slides and reel_script empty for a single-image "
+            "post; never fill both for the same variant.\n"
             "- If you write an A/B test, write both arms."
         ),
         max_tokens=4500,

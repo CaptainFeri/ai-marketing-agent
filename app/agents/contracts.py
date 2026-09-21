@@ -310,6 +310,16 @@ class ScriptBeat(AgentModel):
     visual_cue: str | None = Field(default=None, max_length=300)
 
 
+class CarouselSlide(AgentModel):
+    """One slide of an Instagram (or LinkedIn) carousel post — its own
+    scene and, since FLUX cannot render fa/ar script either, its own
+    overlay text, the same reasoning ``VisualBrief.overlay_text`` follows."""
+
+    order: int = Field(ge=1, le=10)
+    visual_brief: VisualBrief
+    overlay_text: str | None = Field(default=None, max_length=200)
+
+
 class ChannelVariant(AgentModel):
     channel: Literal["wordpress", "telegram", "instagram", "linkedin", "x", "youtube", "aparat"]
     #: "a" / "b" for hook experiments; null when there is a single version.
@@ -319,6 +329,23 @@ class ChannelVariant(AgentModel):
     hashtags: list[str] = Field(default_factory=list, max_length=30)
     call_to_action: str | None = Field(default=None, max_length=300)
     visual_brief: VisualBrief | None = None
+    #: A carousel post (Instagram, LinkedIn) instead of a single image —
+    #: empty for every other post shape. 2-10 slides: Instagram's own
+    #: minimum and maximum for a carousel.
+    carousel_slides: list[CarouselSlide] = Field(default_factory=list, max_length=10)
+    #: A reel's spoken/on-screen beats — distinct from the package-wide
+    #: ``video_script`` below, which is the ``voice``/``face`` video mode's
+    #: script, not a channel-specific short-form cut.
+    reel_script: list[ScriptBeat] = Field(default_factory=list, max_length=20)
+
+    @field_validator("carousel_slides")
+    @classmethod
+    def _a_carousel_needs_at_least_two_slides(
+        cls, value: list[CarouselSlide]
+    ) -> list[CarouselSlide]:
+        if value and len(value) < 2:
+            raise ValueError("a carousel needs at least 2 slides, or none at all")
+        return value
 
 
 class MarketizedOutput(AgentModel):

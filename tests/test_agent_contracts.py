@@ -276,6 +276,43 @@ def test_a_paired_ab_experiment_is_accepted() -> None:
     assert {variant.ab_label for variant in result.variants} == {"a", "b"}
 
 
+def test_a_single_carousel_slide_is_rejected() -> None:
+    """A carousel of one slide is not a carousel — Instagram itself
+    requires at least two."""
+    payload = json.loads(json.dumps(VALID[PipelineStep.MARKETIZER]))
+    payload["variants"][0]["carousel_slides"] = [
+        {"order": 1, "visual_brief": {"scene": "یک صحنه بدون متن"}}
+    ]
+    with pytest.raises(AgentOutputError):
+        validate_agent_output(PipelineStep.MARKETIZER, payload)
+
+
+def test_two_carousel_slides_are_accepted() -> None:
+    payload = json.loads(json.dumps(VALID[PipelineStep.MARKETIZER]))
+    payload["variants"][0]["carousel_slides"] = [
+        {"order": 1, "visual_brief": {"scene": "صحنه اول بدون متن"}, "overlay_text": "اول"},
+        {"order": 2, "visual_brief": {"scene": "صحنه دوم بدون متن"}, "overlay_text": "دوم"},
+    ]
+    result = validate_agent_output(PipelineStep.MARKETIZER, payload)
+    assert len(result.variants[0].carousel_slides) == 2
+
+
+def test_a_reel_script_is_accepted_like_a_video_script() -> None:
+    payload = json.loads(json.dumps(VALID[PipelineStep.MARKETIZER]))
+    payload["variants"][0]["reel_script"] = [
+        {"text": "سلام، این یک ریلز است.", "seconds": 3.0},
+        {"text": "ادامه ریلز.", "seconds": 2.0},
+    ]
+    result = validate_agent_output(PipelineStep.MARKETIZER, payload)
+    assert len(result.variants[0].reel_script) == 2
+
+
+def test_carousel_slides_and_reel_script_default_to_empty() -> None:
+    result = validate_agent_output(PipelineStep.MARKETIZER, VALID[PipelineStep.MARKETIZER])
+    assert result.variants[0].carousel_slides == []
+    assert result.variants[0].reel_script == []
+
+
 def test_a_persian_slug_is_allowed_but_whitespace_is_not() -> None:
     payload = json.loads(json.dumps(VALID[PipelineStep.SEO_OPTIMIZER]))
     assert validate_agent_output(PipelineStep.SEO_OPTIMIZER, payload).slug.startswith("راهنما")

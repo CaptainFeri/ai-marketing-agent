@@ -69,6 +69,25 @@ than just a shape:
   (section 5).
 - **At most one primary keyword** per research output.
 - **Slugs may be Persian** but must not contain whitespace or URL separators.
+- **A carousel needs at least 2 slides, or none at all.** `ChannelVariant`'s
+  `carousel_slides` (handoff section 11: Instagram carousel captions) is
+  empty for a single-image post; a lone slide would not be a carousel, so
+  it is rejected the same way an unpaired A/B arm is.
+
+## Instagram carousel and reel fields: captured, not yet posted live
+
+`ChannelVariant.carousel_slides` (each its own `VisualBrief` + overlay
+text, own field name matches `VisualBrief.overlay_text`'s reasoning — FLUX
+cannot render fa/ar script) and `.reel_script` (beats, same shape as the
+package-wide `video_script`) are real, validated, and persisted into
+`Variant.body` (`app.services.packages._replace_variants`). What is **not**
+built yet: the image queue only ever generates one generic gallery per
+package (`IMAGE_OPTIONS_PER_PACKAGE` in `app/worker/tasks/pipeline.py`),
+with no per-slide generation or gate-2 selection — so
+`app.connectors.instagram`'s live carousel/reel posting flow has nothing to
+attach a specific image to a specific slide yet. That is real, separate,
+follow-up work (image generation and gate 2 both need to become
+carousel-aware), not something this change silently half-does.
 
 ## Changing a contract
 

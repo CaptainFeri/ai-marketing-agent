@@ -411,6 +411,10 @@ def _replace_variants(session: Session, package: ContentPackage, payload: dict) 
                     "call_to_action": item.get("call_to_action"),
                     "video_script": payload.get("video_script", []),
                     "utm_campaign": payload.get("utm_campaign"),
+                    # Instagram carousel/reel shapes (handoff section 11) —
+                    # empty for every other post shape.
+                    "carousel_slides": item.get("carousel_slides", []),
+                    "reel_script": item.get("reel_script", []),
                 },
                 visual_brief=item.get("visual_brief") or default_brief,
             )

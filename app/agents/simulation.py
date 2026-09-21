@@ -148,6 +148,35 @@ _SAMPLES: dict[PipelineStep, dict[str, Any]] = {
                 "body": f"{_MARK} post body",
                 "hashtags": ["#simulated"],
             },
+            {
+                "channel": "instagram",
+                "hook": f"{_MARK} hook",
+                "body": f"{_MARK} post body",
+                "hashtags": ["#simulated"],
+                "carousel_slides": [
+                    {
+                        "order": 1,
+                        "visual_brief": {
+                            "scene": f"{_MARK} slide one scene",
+                            "aspect_ratio": "4:5",
+                            "render_text_separately": True,
+                            "overlay_text": f"{_MARK} slide one text",
+                        },
+                    },
+                    {
+                        "order": 2,
+                        "visual_brief": {
+                            "scene": f"{_MARK} slide two scene",
+                            "aspect_ratio": "4:5",
+                            "render_text_separately": True,
+                        },
+                    },
+                ],
+                "reel_script": [
+                    {"text": f"{_MARK} reel line one.", "seconds": 3.0},
+                    {"text": f"{_MARK} reel line two.", "seconds": 4.0},
+                ],
+            },
         ],
         "video_script": [{"text": f"{_MARK} spoken line.", "seconds": 5.0}],
     },

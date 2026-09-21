@@ -1,5 +1,39 @@
 {
   "$defs": {
+    "CarouselSlide": {
+      "additionalProperties": false,
+      "description": "One slide of an Instagram (or LinkedIn) carousel post — its own\nscene and, since FLUX cannot render fa/ar script either, its own\noverlay text, the same reasoning ``VisualBrief.overlay_text`` follows.",
+      "properties": {
+        "order": {
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Order",
+          "type": "integer"
+        },
+        "visual_brief": {
+          "$ref": "#/$defs/VisualBrief"
+        },
+        "overlay_text": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Overlay Text"
+        }
+      },
+      "required": [
+        "order",
+        "visual_brief"
+      ],
+      "title": "CarouselSlide",
+      "type": "object"
+    },
     "ChannelVariant": {
       "additionalProperties": false,
       "properties": {
@@ -74,6 +108,22 @@
             }
           ],
           "default": null
+        },
+        "carousel_slides": {
+          "items": {
+            "$ref": "#/$defs/CarouselSlide"
+          },
+          "maxItems": 10,
+          "title": "Carousel Slides",
+          "type": "array"
+        },
+        "reel_script": {
+          "items": {
+            "$ref": "#/$defs/ScriptBeat"
+          },
+          "maxItems": 20,
+          "title": "Reel Script",
+          "type": "array"
         }
       },
       "required": [

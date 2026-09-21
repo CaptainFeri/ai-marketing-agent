@@ -337,11 +337,17 @@ def test_the_marketizer_produces_the_channel_variants(package, system_db) -> Non
     package_service.apply_agent_output(system_db, package, PipelineStep.MARKETIZER, run.payload)
 
     variants = system_db.scalars(select(Variant).where(Variant.package_id == package.id)).all()
-    assert {variant.channel.value for variant in variants} == {"wordpress", "telegram"}
+    assert {variant.channel.value for variant in variants} == {"wordpress", "telegram", "instagram"}
     wordpress = next(v for v in variants if v.channel.value == "wordpress")
     assert wordpress.body["hook"]
     # Text is overlaid, never generated into the image (handoff section 5).
     assert wordpress.visual_brief["render_text_separately"] is True
+
+    # Instagram carousel/reel fields (handoff section 11) survive the round
+    # trip from the agent's output into the stored Variant.
+    instagram = next(v for v in variants if v.channel.value == "instagram")
+    assert len(instagram.body["carousel_slides"]) == 2
+    assert len(instagram.body["reel_script"]) == 2
 
 
 def test_re_running_the_marketizer_replaces_rather_than_duplicates(package, system_db) -> None:
@@ -358,4 +364,4 @@ def test_re_running_the_marketizer_replaces_rather_than_duplicates(package, syst
         package_service.apply_agent_output(system_db, package, PipelineStep.MARKETIZER, run.payload)
 
     variants = system_db.scalars(select(Variant).where(Variant.package_id == package.id)).all()
-    assert len(variants) == 2
+    assert len(variants) == 3

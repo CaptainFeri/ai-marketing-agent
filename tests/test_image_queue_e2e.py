@@ -282,7 +282,7 @@ def test_distinct_channels_sharing_no_visual_brief_still_produce_one_gallery(
     get_up_to_gate_two(package, system_db)
 
     variants = system_db.scalars(select(Variant).where(Variant.package_id == package.id)).all()
-    assert {v.channel.value for v in variants} == {"wordpress", "telegram"}
+    assert {v.channel.value for v in variants} == {"wordpress", "telegram", "instagram"}
 
     assets = system_db.scalars(select(MediaAsset).where(MediaAsset.package_id == package.id)).all()
     assert len(assets) == 4  # one gallery of four, not eight
