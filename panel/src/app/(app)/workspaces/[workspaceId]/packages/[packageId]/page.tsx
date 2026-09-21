@@ -22,6 +22,21 @@ type ApprovalGate = components["schemas"]["ApprovalGate"];
 type ApprovalDecision = components["schemas"]["ApprovalDecision"];
 type PipelineStep = components["schemas"]["PipelineStep"];
 
+// Handoff section 4: "زمان‌بندی ساده (لیستی با تاریخ شمسی/میلادی)" — the
+// publication list reads Jalali or Gregorian depending on the workspace's
+// own calendar setting. `Intl`'s Persian calendar does the conversion, so
+// no date-math library is needed for it.
+function formatScheduled(iso: string, calendar: "jalali" | "gregorian"): string {
+  const date = new Date(iso);
+  if (calendar === "jalali") {
+    return new Intl.DateTimeFormat("fa-IR-u-ca-persian", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(date);
+  }
+  return date.toLocaleString();
+}
+
 const PIPELINE_STEPS: PipelineStep[] = [
   "researcher",
   "strategist",
@@ -33,19 +48,23 @@ const PIPELINE_STEPS: PipelineStep[] = [
 ];
 
 export default function PackageDetailPage() {
-  const { packageId } = useParams<{ workspaceId: string; packageId: string }>();
+  const { workspaceId, packageId } = useParams<{ workspaceId: string; packageId: string }>();
   const { t } = useLocale();
   const [pkg, setPkg] = useState<NormalizedPackageDetail | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
+  const [calendar, setCalendar] = useState<"jalali" | "gregorian">("gregorian");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function load() {
     try {
-      const [detail, pubs] = await Promise.all([
+      const [detail, pubs, workspace] = await Promise.all([
         apiClient.GET("/api/v1/packages/{package_id}", { params: { path: { package_id: packageId } } }),
         apiClient.GET("/api/v1/packages/{package_id}/publications", {
           params: { path: { package_id: packageId } },
+        }),
+        apiClient.GET("/api/v1/workspaces/{workspace_id}", {
+          params: { path: { workspace_id: workspaceId } },
         }),
       ]);
       const data = unwrap(detail);
@@ -56,6 +75,7 @@ export default function PackageDetailPage() {
         media_assets: data.media_assets ?? [],
       });
       setPublications(unwrap(pubs));
+      setCalendar(unwrap(workspace).calendar === "jalali" ? "jalali" : "gregorian");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("common.error"));
     }
@@ -67,7 +87,7 @@ export default function PackageDetailPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [packageId]);
+  }, [workspaceId, packageId]);
 
   async function guarded(action: () => Promise<unknown>) {
     setBusy(true);
@@ -257,6 +277,7 @@ export default function PackageDetailPage() {
         packageId={packageId}
         publications={publications}
         variants={pkg.variants}
+        calendar={calendar}
         busy={busy}
         onScheduled={load}
         onCancel={(publicationId) =>
@@ -340,6 +361,7 @@ function PublicationsPanel({
   packageId,
   publications,
   variants,
+  calendar,
   busy,
   onScheduled,
   onCancel,
@@ -347,6 +369,7 @@ function PublicationsPanel({
   packageId: string;
   publications: Publication[];
   variants: NormalizedPackageDetail["variants"];
+  calendar: "jalali" | "gregorian";
   busy: boolean;
   onScheduled: () => Promise<void>;
   onCancel: (publicationId: string) => void;
@@ -390,7 +413,14 @@ function PublicationsPanel({
               </option>
             ))}
           </select>
-          <Input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+          <div className="flex flex-col gap-1">
+            <Input type="datetime-local" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} />
+            {calendar === "jalali" && scheduledAt ? (
+              <span className="text-xs text-muted-foreground">
+                {formatScheduled(new Date(scheduledAt).toISOString(), "jalali")}
+              </span>
+            ) : null}
+          </div>
           <Button type="button" disabled={busy || !variantId || !scheduledAt} onClick={schedule}>
             {t("package.schedule")}
           </Button>
@@ -401,7 +431,7 @@ function PublicationsPanel({
         {publications.map((pub) => (
           <div key={pub.id} className="flex items-center justify-between rounded-md border border-border p-2 text-sm">
             <span>
-              {pub.channel} · {new Date(pub.scheduled_at).toLocaleString()}
+              {pub.channel} · {formatScheduled(pub.scheduled_at, calendar)}
             </span>
             <div className="flex items-center gap-2">
               <Badge tone={pub.status === "published" ? "good" : pub.status === "failed" ? "bad" : "neutral"}>
