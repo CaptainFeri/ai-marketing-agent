@@ -24,7 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.connectors import ConnectorError, MediaForPublish, PublishContent, build_connector
 from app.core.errors import InvalidStateError, NotFoundError
-from app.db.enums import MediaKind, PackageStatus, PublicationStatus
+from app.db.enums import Channel, MediaKind, PackageStatus, PublicationStatus
 from app.db.models import ContentPackage, MediaAsset, Publication, Variant
 from app.services import channel_credentials, storage
 from app.services import packages as package_service
@@ -53,6 +53,12 @@ def schedule_publication(
         raise InvalidStateError("that variant does not belong to this package")
     if not variant.is_selected:
         raise InvalidStateError("only a selected variant can be scheduled")
+    if variant.channel is Channel.X:
+        raise InvalidStateError(
+            "X has no publish connector (handoff section 11) — use "
+            "GET /packages/{package_id}/x-export for a manual-publish package instead "
+            "of scheduling one"
+        )
 
     publication = Publication(
         tenant_id=package.tenant_id,
@@ -96,6 +102,15 @@ def gather_content(session: Session, publication: Publication) -> PublishContent
     if variant is None:
         raise InvalidStateError("this publication has no variant to publish")
 
+    return content_for_variant(session, package, variant)
+
+
+def content_for_variant(
+    session: Session, package: ContentPackage, variant: Variant
+) -> PublishContent:
+    """The same assembly ``gather_content`` does, for a variant that is not
+    (and for X, never will be) behind a ``Publication`` row —
+    ``app.services.x_export`` is the other caller."""
     backend = storage.get_backend()
     media: list[MediaForPublish] = []
     for asset in session.scalars(

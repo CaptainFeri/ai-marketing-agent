@@ -73,7 +73,8 @@ fa/en/ar labels per question.
   re-run, gate 1 (text review) when the package is `text_review`, the
   generated channel variants and media gallery, gate 2 (media selection)
   when the package is `selection`, and publication scheduling once a variant
-  is selected.
+  is selected. A selected X variant shows a copy-to-post thread instead
+  (`docs/x-export.md`) — X has no publish connector to schedule against.
 - `/workspaces/{id}/channels` — create and deactivate WordPress, Telegram,
   Instagram and LinkedIn credentials. Only the channels with a real connector
   (`app/connectors/credentials.py`) are offered; a credential is never

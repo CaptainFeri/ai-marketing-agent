@@ -92,6 +92,22 @@ def test_an_unselected_variant_cannot_be_scheduled(system_db, package, variant) 
         publishing.schedule_publication(system_db, package, variant, datetime.now(UTC))
 
 
+def test_an_x_variant_cannot_be_scheduled(system_db, package) -> None:
+    """X has no publish connector (handoff section 11) —
+    app.services.x_export is how it gets published, not scheduling."""
+    x_variant = Variant(
+        tenant_id=package.tenant_id,
+        package_id=package.id,
+        channel=Channel.X,
+        body={"hook": "قلاب", "body": "متن پست", "hashtags": []},
+        is_selected=True,
+    )
+    system_db.add(x_variant)
+    system_db.flush()
+    with pytest.raises(InvalidStateError, match="x-export"):
+        publishing.schedule_publication(system_db, package, x_variant, datetime.now(UTC))
+
+
 def test_a_variant_from_another_package_cannot_be_scheduled(
     system_db, package, variant, tenant_factory
 ) -> None:

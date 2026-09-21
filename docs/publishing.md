@@ -7,8 +7,8 @@ connector is a real, working HTTP client — not simulated — tested against
 responses. Unlike the language and image models, there is no phase-0
 weight-measurement blocker here: these are fixed, published HTTP contracts,
 so the code that speaks them can be built and verified today. X has no
-connector — the handoff wants a manual-publish export instead (phase 2,
-not yet built).
+connector — the handoff wants a manual-publish export instead, see
+`docs/x-export.md`.
 
 ```
 schedule_publication()               a selected variant + a time

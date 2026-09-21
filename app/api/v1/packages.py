@@ -13,6 +13,8 @@ from app.core.errors import InvalidStateError, NotFoundError
 from app.db.enums import (
     ApprovalDecision,
     ApprovalGate,
+    Channel,
+    MediaKind,
     PackageStatus,
     PipelineStep,
     Role,
@@ -34,10 +36,12 @@ from app.schemas.content import (
     TopicOut,
     VariantOut,
     VariantSelect,
+    XExportOut,
 )
 from app.services import packages as package_service
 from app.services import publishing as publishing_service
 from app.services import storage
+from app.services import x_export as x_export_service
 
 #: Re-running the text line only makes sense before the media stage begins.
 RERUNNABLE_STATUSES = frozenset(
@@ -219,6 +223,47 @@ def create_publication(
         session, package, variant, payload.scheduled_at
     )
     return PublicationOut.model_validate(publication)
+
+
+@router.get("/{package_id}/x-export", response_model=XExportOut)
+def export_for_x(
+    package_id: uuid.UUID,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> XExportOut:
+    """A ready-to-post-manually thread for X (handoff section 11) — X has
+    no publish connector (``publishing.schedule_publication`` refuses it),
+    so this is read, not scheduled.
+    """
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.VIEWER)
+
+    variant = session.scalars(
+        select(Variant).where(
+            Variant.package_id == package.id,
+            Variant.channel == Channel.X,
+            Variant.is_selected.is_(True),
+        )
+    ).one_or_none()
+    if variant is None:
+        raise NotFoundError("no selected X variant on this package")
+
+    content = publishing_service.content_for_variant(session, package, variant)
+    export = x_export_service.build_export(content)
+
+    media_asset_id = session.scalars(
+        select(MediaAsset.id)
+        .where(
+            MediaAsset.package_id == package.id,
+            MediaAsset.is_selected.is_(True),
+            MediaAsset.kind == MediaKind.IMAGE,
+        )
+        .limit(1)
+    ).first()
+
+    return XExportOut(
+        tweets=list(export.tweets), tweet_count=len(export.tweets), media_asset_id=media_asset_id
+    )
 
 
 @router.get("/{package_id}/publications", response_model=list[PublicationOut])

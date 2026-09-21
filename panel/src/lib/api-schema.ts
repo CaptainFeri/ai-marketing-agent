@@ -515,6 +515,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/packages/{package_id}/x-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export For X
+         * @description A ready-to-post-manually thread for X (handoff section 11) — X has
+         *     no publish connector (``publishing.schedule_publication`` refuses it),
+         *     so this is read, not scheduled.
+         */
+        get: operations["export_for_x_api_v1_packages__package_id__x_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/packages/{package_id}/publications/{publication_id}/cancel": {
         parameters: {
             query?: never;
@@ -1874,6 +1896,19 @@ export interface components {
             /** Is Active */
             is_active?: boolean | null;
         };
+        /**
+         * XExportOut
+         * @description A ready-to-post-manually thread (handoff section 11) — X has no
+         *     publish connector, so this is read, not scheduled.
+         */
+        XExportOut: {
+            /** Tweets */
+            tweets: string[];
+            /** Tweet Count */
+            tweet_count: number;
+            /** Media Asset Id */
+            media_asset_id: string | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -2834,6 +2869,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublicationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_for_x_api_v1_packages__package_id__x_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["XExportOut"];
                 };
             };
             /** @description Validation Error */

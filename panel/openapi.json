@@ -1525,6 +1525,55 @@
         }
       }
     },
+    "/api/v1/packages/{package_id}/x-export": {
+      "get": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Export For X",
+        "description": "A ready-to-post-manually thread for X (handoff section 11) — X has\nno publish connector (``publishing.schedule_publication`` refuses it),\nso this is read, not scheduled.",
+        "operationId": "export_for_x_api_v1_packages__package_id__x_export_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/XExportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/packages/{package_id}/publications/{publication_id}/cancel": {
       "post": {
         "tags": [
@@ -5149,6 +5198,41 @@
         },
         "type": "object",
         "title": "WorkspaceUpdate"
+      },
+      "XExportOut": {
+        "properties": {
+          "tweets": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tweets"
+          },
+          "tweet_count": {
+            "type": "integer",
+            "title": "Tweet Count"
+          },
+          "media_asset_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Asset Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tweets",
+          "tweet_count",
+          "media_asset_id"
+        ],
+        "title": "XExportOut",
+        "description": "A ready-to-post-manually thread (handoff section 11) — X has no\npublish connector, so this is read, not scheduled."
       }
     },
     "securitySchemes": {

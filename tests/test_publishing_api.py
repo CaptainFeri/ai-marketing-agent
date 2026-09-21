@@ -114,6 +114,50 @@ def package_and_variant(acme, workspace_id):
     return str(package_id), str(variant_id), str(asset_id)
 
 
+@pytest.fixture
+def x_package_and_variant(acme, workspace_id):
+    """A package with one selected X variant and one selected image — X has
+    no connector, so this is exported, never scheduled."""
+    import uuid
+
+    with system_session() as session:
+        package = ContentPackage(
+            tenant_id=acme.id,
+            workspace_id=uuid.UUID(workspace_id),
+            title="راهنمای خرید دریل برقی",
+            locale="fa",
+            status=PackageStatus.SELECTION,
+            article={"title": "راهنمای خرید دریل برقی", "slug": "drill-guide"},
+        )
+        session.add(package)
+        session.flush()
+
+        variant = Variant(
+            tenant_id=acme.id,
+            package_id=package.id,
+            channel=Channel.X,
+            body={"hook": "قلاب", "body": "متن پست", "hashtags": ["ابزار"]},
+            is_selected=True,
+        )
+        session.add(variant)
+
+        asset = MediaAsset(
+            tenant_id=acme.id,
+            package_id=package.id,
+            kind=MediaKind.IMAGE,
+            storage_key="acme/x-export.png",
+            mime_type="image/png",
+            is_selected=True,
+        )
+        session.add(asset)
+        session.flush()
+        storage.get_backend().put("acme/x-export.png", b"\x89PNG...", "image/png")
+
+        package_id, variant_id, asset_id = package.id, variant.id, asset.id
+
+    return str(package_id), str(variant_id), str(asset_id)
+
+
 WORDPRESS_PAYLOAD = {
     "site_url": "https://acme.example",
     "username": "bot",
@@ -267,6 +311,58 @@ def test_scheduling_an_unselected_variant_is_refused(
         },
     )
     assert response.status_code == 409
+
+
+def test_an_x_variant_cannot_be_scheduled_through_the_publications_endpoint(
+    client, owner_token, x_package_and_variant
+) -> None:
+    package_id, variant_id, _ = x_package_and_variant
+    response = client.post(
+        f"/api/v1/packages/{package_id}/publications",
+        headers=auth(owner_token),
+        json={"variant_id": variant_id, "scheduled_at": datetime.now(UTC).isoformat()},
+    )
+    assert response.status_code == 409
+    assert "x-export" in response.json()["error"]["message"]
+
+
+def test_x_export_returns_a_thread_and_the_selected_image(
+    client, owner_token, x_package_and_variant
+) -> None:
+    package_id, _variant_id, asset_id = x_package_and_variant
+    response = client.get(f"/api/v1/packages/{package_id}/x-export", headers=auth(owner_token))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["tweet_count"] == len(body["tweets"]) == 1
+    assert "قلاب" in body["tweets"][0]
+    assert "متن پست" in body["tweets"][0]
+    assert "#ابزار" in body["tweets"][0]
+    assert body["media_asset_id"] == asset_id
+
+
+def test_x_export_404s_with_no_selected_x_variant(client, owner_token, package_and_variant) -> None:
+    package_id, _variant_id, _asset_id = package_and_variant
+    response = client.get(f"/api/v1/packages/{package_id}/x-export", headers=auth(owner_token))
+    assert response.status_code == 404
+
+
+def test_x_export_is_invisible_to_another_tenant(client, x_package_and_variant) -> None:
+    from app.schemas.tenant import TenantCreate
+    from app.services.auth import create_tenant_with_owner
+
+    create_tenant_with_owner(
+        TenantCreate(
+            slug="globex",
+            name="Globex",
+            owner_email="owner@globex.example",
+            owner_password=PASSWORD,
+        )
+    )
+    other_token = login(client, "owner@globex.example")
+
+    package_id, _variant_id, _asset_id = x_package_and_variant
+    response = client.get(f"/api/v1/packages/{package_id}/x-export", headers=auth(other_token))
+    assert response.status_code == 404
 
 
 def test_listing_and_cancelling_a_publication(client, owner_token, package_and_variant) -> None:

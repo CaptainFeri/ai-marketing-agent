@@ -273,6 +273,10 @@ export default function PackageDetailPage() {
         <GatePanel title={t("package.gate2.title")} gate="media" busy={busy} onDecide={decideGate} />
       ) : null}
 
+      {pkg.variants.some((v) => v.channel === "x" && v.is_selected) ? (
+        <XExportPanel packageId={packageId} mediaAssets={pkg.media_assets} />
+      ) : null}
+
       <PublicationsPanel
         packageId={packageId}
         publications={publications}
@@ -506,6 +510,77 @@ function MetricsPanel({ packageId }: { packageId: string }) {
           </table>
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+type XExport = components["schemas"]["XExportOut"];
+
+function XExportPanel({
+  packageId,
+  mediaAssets,
+}: {
+  packageId: string;
+  mediaAssets: NormalizedPackageDetail["media_assets"];
+}) {
+  const { t } = useLocale();
+  const [xExport, setXExport] = useState<XExport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiClient
+      .GET("/api/v1/packages/{package_id}/x-export", { params: { path: { package_id: packageId } } })
+      .then((result) => {
+        if (!cancelled) setXExport(unwrap(result));
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof ApiError ? err.message : t("common.error"));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [packageId, t]);
+
+  async function copy(text: string, index: number) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(index);
+      setTimeout(() => setCopiedIndex((current) => (current === index ? null : current)), 2000);
+    } catch {
+      // Clipboard access can be unavailable (permissions, non-HTTPS context
+      // in dev); the text is still right there on the page to select by hand.
+    }
+  }
+
+  const media = xExport?.media_asset_id
+    ? mediaAssets.find((asset) => asset.id === xExport.media_asset_id)
+    : undefined;
+
+  return (
+    <Card>
+      <h2 className="mb-1 font-medium">{t("package.x_export.title")}</h2>
+      <p className="mb-2 text-xs text-muted-foreground">{t("package.x_export.hint")}</p>
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {xExport === null && !error ? <Spinner /> : null}
+      {media?.url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={media.url} alt="" className="mb-2 max-h-48 rounded-md border border-border" />
+      ) : null}
+      <div className="flex flex-col gap-2">
+        {xExport?.tweets.map((tweet, index) => (
+          <div key={index} className="rounded-md border border-border p-2">
+            <p className="whitespace-pre-wrap text-sm">{tweet}</p>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">{tweet.length}/280</span>
+              <Button type="button" variant="secondary" className="!px-2 !py-1 text-xs" onClick={() => copy(tweet, index)}>
+                {copiedIndex === index ? t("package.x_export.copied") : t("package.x_export.copy")}
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }

@@ -165,3 +165,12 @@ class ApprovalOut(ORMModel):
     return_to_step: PipelineStep | None
     decided_by_id: uuid.UUID | None
     decided_at: datetime | None
+
+
+class XExportOut(BaseModel):
+    """A ready-to-post-manually thread (handoff section 11) — X has no
+    publish connector, so this is read, not scheduled."""
+
+    tweets: list[str]
+    tweet_count: int
+    media_asset_id: uuid.UUID | None
