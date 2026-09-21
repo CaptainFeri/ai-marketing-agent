@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { useLocale } from "@/lib/locale-context";
@@ -96,6 +97,12 @@ export default function LoginPage() {
             {t("login.submit")}
           </Button>
         </form>
+        <p className="mt-4 text-sm text-muted-foreground">
+          {t("login.register_prompt")}{" "}
+          <Link href="/register" className="font-medium text-foreground underline">
+            {t("login.register_link")}
+          </Link>
+        </p>
       </div>
     </div>
   );

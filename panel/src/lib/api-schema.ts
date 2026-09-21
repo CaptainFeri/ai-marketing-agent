@@ -61,6 +61,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register
+         * @description Self-service signup (handoff section 11, phase 2).
+         *
+         *     The one endpoint a brand-new customer reaches with no bearer token —
+         *     every other route is protected by requiring one, so this is the one
+         *     that needs its own abuse guard.
+         */
+        post: operations["register_api_v1_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/refresh": {
         parameters: {
             query?: never;
@@ -1477,6 +1501,28 @@ export interface components {
             ar?: string[];
         };
         /**
+         * SelfServiceSignup
+         * @description A brand-new customer provisioning their own tenant (handoff section
+         *     11, phase 2) — no ``plan``/``quota_weight``: those are an operator's
+         *     call, not the signer-upper's, so ``app.services.auth.register`` fixes
+         *     them at ``Plan.TRIAL`` / weight 1 rather than trusting the request.
+         */
+        SelfServiceSignup: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /**
+             * Owner Email
+             * Format: email
+             */
+            owner_email: string;
+            /** Owner Password */
+            owner_password: string;
+            /** Owner Full Name */
+            owner_full_name?: string | null;
+        };
+        /**
          * SessionInfo
          * @description Everything the panel needs right after login.
          */
@@ -1896,6 +1942,39 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenPair"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_api_v1_auth_register_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SelfServiceSignup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
                 headers: {
                     [name: string]: unknown;
                 };

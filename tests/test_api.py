@@ -176,6 +176,189 @@ def test_creating_a_tenant_needs_a_platform_operator(client: TestClient, acme) -
     assert response.status_code == 403
 
 
+def test_self_service_signup_creates_a_tenant_and_logs_the_owner_in(
+    client: TestClient, clean_database
+) -> None:
+    from app.core.rate_limit import InMemoryRateLimiter, set_rate_limiter
+
+    set_rate_limiter(InMemoryRateLimiter())
+    try:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "newco",
+                "name": "New Co",
+                "owner_email": "founder@newco.example",
+                "owner_password": PASSWORD,
+                "owner_full_name": "Founder",
+            },
+        )
+        assert response.status_code == 201, response.text
+        body = response.json()
+        assert body["token_type"] == "bearer"
+
+        me = client.get("/api/v1/auth/me", headers=auth(body["access_token"]))
+        assert me.status_code == 200
+        assert me.json()["tenant"]["slug"] == "newco"
+        assert me.json()["memberships"][0]["role"] == "owner"
+    finally:
+        set_rate_limiter(None)
+
+
+def test_self_service_signup_forces_the_trial_plan(client: TestClient, clean_database) -> None:
+    from sqlalchemy import select
+
+    from app.core.rate_limit import InMemoryRateLimiter, set_rate_limiter
+    from app.db.models import Tenant
+    from app.db.tenancy import system_session
+
+    set_rate_limiter(InMemoryRateLimiter())
+    try:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "planhack",
+                "name": "Plan Hack",
+                "owner_email": "hacker@planhack.example",
+                "owner_password": PASSWORD,
+                # A self-service signup has no plan/quota_weight fields at
+                # all — this schema doesn't accept them, so there is nothing
+                # to try to smuggle in even if a caller adds extra keys.
+                "plan": "scale",
+                "quota_weight": 100,
+            },
+        )
+        assert response.status_code == 201, response.text
+
+        with system_session() as session:
+            tenant = session.scalars(select(Tenant).where(Tenant.slug == "planhack")).one()
+            assert tenant.plan.value == "trial"
+            assert tenant.quota_weight == 1
+    finally:
+        set_rate_limiter(None)
+
+
+def test_self_service_signup_refuses_a_duplicate_slug(client: TestClient, acme) -> None:
+    from app.core.rate_limit import InMemoryRateLimiter, set_rate_limiter
+
+    set_rate_limiter(InMemoryRateLimiter())
+    try:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "acme",
+                "name": "Impersonator",
+                "owner_email": "new@acme.example",
+                "owner_password": PASSWORD,
+            },
+        )
+        assert response.status_code == 409
+    finally:
+        set_rate_limiter(None)
+
+
+def test_self_service_signup_refuses_an_email_that_already_has_an_account(
+    client: TestClient, acme
+) -> None:
+    from app.core.rate_limit import InMemoryRateLimiter, set_rate_limiter
+
+    set_rate_limiter(InMemoryRateLimiter())
+    try:
+        response = client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "someone-elses-company",
+                "name": "Someone Else's Company",
+                "owner_email": "owner@acme.example",
+                "owner_password": "a-totally-different-password",
+            },
+        )
+        assert response.status_code == 409
+        # And the real owner's original membership was never touched.
+        token = login(client, "owner@acme.example")
+        me = client.get("/api/v1/auth/me", headers=auth(token))
+        assert me.json()["tenant"]["slug"] == "acme"
+    finally:
+        set_rate_limiter(None)
+
+
+def test_signups_from_one_address_are_rate_limited(client: TestClient, clean_database) -> None:
+    from app.core.rate_limit import InMemoryRateLimiter, set_rate_limiter
+
+    set_rate_limiter(InMemoryRateLimiter())
+    try:
+        for i in range(5):
+            response = client.post(
+                "/api/v1/auth/register",
+                json={
+                    "slug": f"flood-{i}",
+                    "name": f"Flood {i}",
+                    "owner_email": f"flood-{i}@example.com",
+                    "owner_password": PASSWORD,
+                },
+            )
+            assert response.status_code == 201, response.text
+
+        blocked = client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "flood-6",
+                "name": "Flood 6",
+                "owner_email": "flood-6@example.com",
+                "owner_password": PASSWORD,
+            },
+        )
+        assert blocked.status_code == 429
+    finally:
+        set_rate_limiter(None)
+
+
+def test_repeated_signups_for_one_email_are_rate_limited_separately(
+    client: TestClient, clean_database
+) -> None:
+    from app.core.rate_limit import InMemoryRateLimiter, set_rate_limiter
+
+    set_rate_limiter(InMemoryRateLimiter())
+    try:
+        # Each attempt reuses the same already-registered email, so every
+        # one after the first is a 409 (not a 201) — but they should still
+        # count against the per-email limit, which is tighter (3) than the
+        # per-IP one (5) and would otherwise be masked by it.
+        client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "first",
+                "name": "First",
+                "owner_email": "repeat@example.com",
+                "owner_password": PASSWORD,
+            },
+        )
+        for _ in range(2):
+            response = client.post(
+                "/api/v1/auth/register",
+                json={
+                    "slug": "retry",
+                    "name": "Retry",
+                    "owner_email": "repeat@example.com",
+                    "owner_password": PASSWORD,
+                },
+            )
+            assert response.status_code == 409
+
+        blocked = client.post(
+            "/api/v1/auth/register",
+            json={
+                "slug": "retry-again",
+                "name": "Retry Again",
+                "owner_email": "repeat@example.com",
+                "owner_password": PASSWORD,
+            },
+        )
+        assert blocked.status_code == 429
+    finally:
+        set_rate_limiter(None)
+
+
 def test_a_viewer_cannot_create_a_workspace(client: TestClient, acme) -> None:
     owner_token = login(client, "owner@acme.example")
     created = client.post(

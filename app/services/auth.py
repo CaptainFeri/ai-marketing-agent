@@ -17,11 +17,11 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.errors import AuthenticationError, ConflictError, NotFoundError
 from app.core.security import create_token, decode_token, hash_password, verify_password
-from app.db.enums import Role
+from app.db.enums import Plan, Role
 from app.db.models import Membership, Tenant, User, Workspace
 from app.db.tenancy import system_session
 from app.schemas.auth import TokenPair
-from app.schemas.tenant import TenantCreate
+from app.schemas.tenant import SelfServiceSignup, TenantCreate
 
 
 # --------------------------------------------------------------------------
@@ -209,6 +209,41 @@ def create_tenant_with_owner(payload: TenantCreate) -> Tenant:
         session.refresh(tenant)
         session.expunge_all()
         return tenant
+
+
+def register(payload: SelfServiceSignup) -> tuple[TokenPair, Tenant]:
+    """Self-service signup (handoff section 11, phase 2): a brand-new
+    customer provisions their own tenant with no operator involved.
+
+    ``plan``/``quota_weight`` are an operator's call, not the caller's, so
+    they are fixed here rather than accepted from the request.
+
+    Unlike :func:`create_tenant_with_owner` — trusted, operator-only, and
+    happy to attach an existing account as the new tenant's owner without
+    re-checking its password — this refuses an email that already has an
+    account. Reusing it here would grant owner membership on a brand-new,
+    caller-controlled tenant to whoever actually owns that address, with no
+    proof the caller is that person.
+    """
+    with system_session() as session:
+        if get_user_by_email(session, payload.owner_email) is not None:
+            raise ConflictError("an account with this email already exists; log in instead")
+
+    tenant = create_tenant_with_owner(
+        TenantCreate(
+            slug=payload.slug,
+            name=payload.name,
+            plan=Plan.TRIAL,
+            quota_weight=1,
+            owner_email=payload.owner_email,
+            owner_password=payload.owner_password,
+            owner_full_name=payload.owner_full_name,
+        )
+    )
+    pair, _user, _tenant, _memberships = login(
+        payload.owner_email, payload.owner_password, payload.slug
+    )
+    return pair, tenant
 
 
 def add_member(

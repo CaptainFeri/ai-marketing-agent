@@ -94,6 +94,48 @@
         }
       }
     },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register",
+        "description": "Self-service signup (handoff section 11, phase 2).\n\nThe one endpoint a brand-new customer reaches with no bearer token —\nevery other route is protected by requiring one, so this is the one\nthat needs its own abuse guard.",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SelfServiceSignup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenPair"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/refresh": {
       "post": {
         "tags": [
@@ -4110,6 +4152,52 @@
         "type": "object",
         "title": "SeedKeywords",
         "description": "Keywords are researched per language, never translated (decision D3)."
+      },
+      "SelfServiceSignup": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "owner_email": {
+            "type": "string",
+            "format": "email",
+            "title": "Owner Email"
+          },
+          "owner_password": {
+            "type": "string",
+            "maxLength": 512,
+            "minLength": 8,
+            "title": "Owner Password"
+          },
+          "owner_full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Full Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "name",
+          "owner_email",
+          "owner_password"
+        ],
+        "title": "SelfServiceSignup",
+        "description": "A brand-new customer provisioning their own tenant (handoff section\n11, phase 2) — no ``plan``/``quota_weight``: those are an operator's\ncall, not the signer-upper's, so ``app.services.auth.register`` fixes\nthem at ``Plan.TRIAL`` / weight 1 rather than trusting the request."
       },
       "SessionInfo": {
         "properties": {

@@ -47,3 +47,10 @@ class InvalidStateError(AppError):
 
     status_code = 409
     code = "invalid_state"
+
+
+class RateLimitedError(AppError):
+    """Too many calls to an unauthenticated endpoint from one source."""
+
+    status_code = 429
+    code = "rate_limited"

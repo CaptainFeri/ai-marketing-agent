@@ -30,6 +30,13 @@ interface AuthState {
   status: "loading" | "authenticated" | "unauthenticated";
   session: SessionInfo | null;
   login: (email: string, password: string, tenantSlug?: string) => Promise<void>;
+  register: (params: {
+    slug: string;
+    name: string;
+    ownerEmail: string;
+    ownerPassword: string;
+    ownerFullName?: string;
+  }) => Promise<void>;
   logout: () => void;
   /** The caller's role for one workspace (falling back to a tenant-wide
    * membership), or null with no access at all — mirrors
@@ -90,6 +97,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [loadSession],
   );
 
+  const register = useCallback(
+    async (params: {
+      slug: string;
+      name: string;
+      ownerEmail: string;
+      ownerPassword: string;
+      ownerFullName?: string;
+    }) => {
+      const result = await apiClient.POST("/api/v1/auth/register", {
+        body: {
+          slug: params.slug,
+          name: params.name,
+          owner_email: params.ownerEmail,
+          owner_password: params.ownerPassword,
+          owner_full_name: params.ownerFullName ?? null,
+        },
+      });
+      const tokens = unwrap(result);
+      setTokens({
+        accessToken: tokens.access_token,
+        refreshToken: tokens.refresh_token,
+        tenantId: tokens.tenant_id,
+      });
+      await loadSession();
+    },
+    [loadSession],
+  );
+
   const logout = useCallback(() => {
     clearTokens();
     setSession(null);
@@ -121,8 +156,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<AuthState>(
-    () => ({ status, session, login, logout, roleFor, hasRole }),
-    [status, session, login, logout, roleFor, hasRole],
+    () => ({ status, session, login, register, logout, roleFor, hasRole }),
+    [status, session, login, register, logout, roleFor, hasRole],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

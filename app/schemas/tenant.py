@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.db.enums import Plan
 from app.schemas.common import ORMModel
@@ -20,6 +20,19 @@ class TenantCreate(BaseModel):
     quota_weight: int = Field(default=1, ge=1, le=100)
     # The first owner is created together with the tenant.
     owner_email: str
+    owner_password: str = Field(min_length=8, max_length=512)
+    owner_full_name: str | None = None
+
+
+class SelfServiceSignup(BaseModel):
+    """A brand-new customer provisioning their own tenant (handoff section
+    11, phase 2) — no ``plan``/``quota_weight``: those are an operator's
+    call, not the signer-upper's, so ``app.services.auth.register`` fixes
+    them at ``Plan.TRIAL`` / weight 1 rather than trusting the request."""
+
+    slug: str = Field(pattern=SLUG_PATTERN)
+    name: str = Field(min_length=1, max_length=200)
+    owner_email: EmailStr
     owner_password: str = Field(min_length=8, max_length=512)
     owner_full_name: str | None = None
 

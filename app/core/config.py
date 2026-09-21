@@ -161,6 +161,11 @@ class Settings(BaseSettings):
     backup_retention_days: int = 14
     pg_dump_binary: str = "pg_dump"
 
+    # ---- rate limiting (unauthenticated endpoints only) -----------------
+    rate_limit_backend: str = "memory"
+    registration_rate_limit_per_hour: int = 5
+    registration_rate_limit_per_email_per_hour: int = 3
+
     @field_validator("supported_locales", mode="before")
     @classmethod
     def _split_locales(cls, value: object) -> object:
