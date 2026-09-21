@@ -133,6 +133,60 @@ class LinkedInConnector:
         return post_urn
 
 
+class LinkedInInsightsClient:
+    """``GET /rest/organizationalEntityShareStatistics`` — per-post
+    impressions/clicks/engagement for the daily metrics sweep
+    (``app.services.analytics``). The long-standing Organization Share
+    Statistics API, still current under the versioned ``/rest`` surface —
+    a separate class from :class:`LinkedInConnector` since publishing and
+    reading statistics are independent operations sharing one API and one
+    credential.
+    """
+
+    def __init__(self, client: httpx.Client | None = None) -> None:
+        self._client = client
+
+    def share_statistics(self, credential: LinkedInCredential, post_urn: str) -> dict[str, int]:
+        client = self._client or httpx.Client(timeout=_TIMEOUT)
+        owns_client = self._client is None
+        headers = {
+            "Authorization": f"Bearer {credential.access_token}",
+            "X-Restli-Protocol-Version": "2.0.0",
+            "LinkedIn-Version": API_VERSION,
+        }
+        try:
+            response = client.get(
+                f"{BASE_URL}/organizationalEntityShareStatistics",
+                headers=headers,
+                params={
+                    "q": "organizationalEntity",
+                    "organizationalEntity": credential.organization_urn,
+                    "shares[0]": post_urn,
+                },
+            )
+        except httpx.HTTPError as exc:
+            raise ConnectorError(
+                f"LinkedIn insights request failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            if owns_client:
+                client.close()
+
+        body = _raise_for_linkedin_error(response, "reading share statistics")
+        elements = body.get("elements", [])
+        if not elements:
+            return {}
+        stats = elements[0].get("totalShareStatistics", {})
+        return {
+            "impressions": stats.get("impressionCount", 0),
+            "clicks": stats.get("clickCount", 0),
+            "likes": stats.get("likeCount", 0),
+            "comments": stats.get("commentCount", 0),
+            "shares": stats.get("shareCount", 0),
+            "engagement": stats.get("engagement", 0),
+        }
+
+
 def _compose_commentary(content: PublishContent) -> str:
     parts = [part for part in (content.hook, content.body) if part]
     text = "\n\n".join(parts) if parts else content.body

@@ -104,6 +104,10 @@ Publishing flow):
   `_POLL_ATTEMPTS × _POLL_INTERVAL_SECONDS`), then `media_publish`;
 - truncates the caption to Instagram's real 2200-character limit.
 
+`InstagramInsightsClient`, in the same file, is a separate class reading
+that same post's engagement numbers back for the daily metrics sweep — see
+`docs/social-insights.md`.
+
 **LinkedIn** (`app/connectors/linkedin.py`, the current Posts API — not the
 deprecated `ugcPosts` one it replaced):
 - a selected image, if there is one, is uploaded first
@@ -113,6 +117,9 @@ deprecated `ugcPosts` one it replaced):
 - the new post's id comes back in the `x-restli-id` response header, not
   the (empty) JSON body — LinkedIn's own contract, not an oversight here;
 - truncates the commentary to a 3000-character limit.
+
+`LinkedInInsightsClient`, in the same file, reads that post's own share
+statistics for the daily metrics sweep — see `docs/social-insights.md`.
 
 ### Instagram and LinkedIn need a publicly reachable image URL
 

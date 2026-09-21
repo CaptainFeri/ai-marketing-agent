@@ -65,7 +65,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.ForeignKeyConstraint(
-            ["tenant_id"], ["tenant.id"], name=op.f("fk_ab_test_result_tenant_id"), ondelete="CASCADE"
+            ["tenant_id"],
+            ["tenant.id"],
+            name=op.f("fk_ab_test_result_tenant_id"),
+            ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["package_id"],

@@ -11,17 +11,18 @@ The metric compared is click-through rate, not raw clicks: a hook changes
 whether someone clicks a result that already ranks where it ranks, not the
 ranking itself, so CTR isolates the hook's own effect in a way raw clicks
 (confounded by whichever arm happened to draw more impressions) would not.
-CTR needs both clicks and impressions, which today only Search Console
-provides (``app.services.analytics._pull_search_console``) — GA4 carries
-neither, and the not-yet-built social connectors (task #45) do not either,
-so a package's non-WordPress channels simply have no A/B result yet. That is
-an honest gap in the data available today, not a bug in this comparison.
+CTR needs both clicks and impressions, which Search Console
+(``app.services.analytics._pull_search_console``) and LinkedIn's own share
+statistics (``_pull_linkedin``, ``docs/social-insights.md``) both provide —
+GA4 and Instagram's insights carry neither, so a package's GA4-only or
+Instagram channel simply has no A/B result yet. That is an honest gap in
+the data those two APIs expose, not a bug in this comparison.
 """
 
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -88,7 +89,7 @@ def evaluate_package(session: Session, package: ContentPackage) -> list[ABTestRe
         else:
             winner_id = None
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         statement = (
             pg_insert(ABTestResult)
             .values(

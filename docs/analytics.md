@@ -59,7 +59,8 @@ triggered either one.
 
 The same sweep also re-runs any hook A/B comparison a measured package has
 (`app.services.analytics._evaluate_ab_results` → `app.services.ab_testing`)
-— see `docs/ab-testing.md`.
+— see `docs/ab-testing.md` — and pulls Instagram/LinkedIn post insights
+alongside Search Console/GA4 — see `docs/social-insights.md`.
 
 ## What's real today, and what an operator still has to supply
 

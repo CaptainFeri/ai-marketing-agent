@@ -517,6 +517,7 @@ function MetricsPanel({ packageId }: { packageId: string }) {
                 <th className="p-1 text-start">{t("analytics.impressions")}</th>
                 <th className="p-1 text-start">{t("analytics.clicks")}</th>
                 <th className="p-1 text-start">{t("analytics.position")}</th>
+                <th className="p-1 text-start">{t("analytics.other_metrics")}</th>
               </tr>
             </thead>
             <tbody>
@@ -527,6 +528,11 @@ function MetricsPanel({ packageId }: { packageId: string }) {
                   <td className="p-1">{snapshot.impressions ?? "—"}</td>
                   <td className="p-1">{snapshot.clicks ?? "—"}</td>
                   <td className="p-1">{snapshot.position?.toFixed(1) ?? "—"}</td>
+                  <td className="p-1 text-xs text-muted-foreground">
+                    {Object.entries(snapshot.metrics ?? {})
+                      .map(([key, value]) => `${key}: ${value}`)
+                      .join(" · ") || "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

@@ -15,7 +15,7 @@ import pytest
 
 from app.connectors.base import ConnectorError, MediaForPublish, PublishContent
 from app.connectors.credentials import LinkedInCredential, TelegramCredential
-from app.connectors.linkedin import LinkedInConnector
+from app.connectors.linkedin import LinkedInConnector, LinkedInInsightsClient
 
 
 def content(**overrides) -> PublishContent:
@@ -197,3 +197,64 @@ def test_refuses_the_wrong_credential_type() -> None:
 
     with pytest.raises(ConnectorError, match="LinkedInCredential"):
         connector(handler).publish(content(), TelegramCredential(bot_token="1:a", chat_id="@x"))
+
+
+# --------------------------------------------------------------------------
+# LinkedInInsightsClient (handoff section 11: social insights pulling)
+# --------------------------------------------------------------------------
+def test_share_statistics_reads_impressions_and_engagement() -> None:
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["params"] = dict(request.url.params)
+        return httpx.Response(
+            200,
+            json={
+                "elements": [
+                    {
+                        "totalShareStatistics": {
+                            "impressionCount": 500,
+                            "clickCount": 15,
+                            "likeCount": 20,
+                            "commentCount": 3,
+                            "shareCount": 2,
+                            "engagement": 0.08,
+                        }
+                    }
+                ]
+            },
+        )
+
+    result = LinkedInInsightsClient(client(handler)).share_statistics(
+        credential(), "urn:li:share:1"
+    )
+    assert seen["path"] == "/rest/organizationalEntityShareStatistics"
+    assert seen["params"]["organizationalEntity"] == "urn:li:organization:12345"
+    assert seen["params"]["shares[0]"] == "urn:li:share:1"
+    assert result == {
+        "impressions": 500,
+        "clicks": 15,
+        "likes": 20,
+        "comments": 3,
+        "shares": 2,
+        "engagement": 0.08,
+    }
+
+
+def test_share_statistics_with_no_elements_is_empty() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"elements": []})
+
+    result = LinkedInInsightsClient(client(handler)).share_statistics(
+        credential(), "urn:li:share:1"
+    )
+    assert result == {}
+
+
+def test_share_statistics_error_becomes_a_connector_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"message": "ACCESS_DENIED"})
+
+    with pytest.raises(ConnectorError, match="ACCESS_DENIED"):
+        LinkedInInsightsClient(client(handler)).share_statistics(credential(), "urn:li:share:1")

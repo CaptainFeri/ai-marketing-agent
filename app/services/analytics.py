@@ -1,12 +1,21 @@
-"""Pulling daily metrics from Search Console and GA4 (handoff section 7).
+"""Pulling daily metrics from Search Console, GA4 (handoff section 7) and,
+for Instagram/LinkedIn, the channels' own post insights (handoff section
+11: "دریافت آمار Insights از کانال‌های اجتماعی").
 
-One publication may show up in both providers (a WordPress post has search
-traffic and page views) or neither (a Telegram post has no URL to measure).
-Matching a provider's result rows to *this tenant's* publications is done in
-Python rather than by asking each API to filter — walking the returned rows
-once and matching by URL/path is simpler than either API's filter syntax and
-identical in cost, since a Search Console or GA4 property's whole day of
-data is already one HTTP response either way.
+One publication may show up in more than one provider (a WordPress post has
+both search traffic and page views) or none (a Telegram post has nothing
+measurable). Matching a provider's result rows to *this tenant's*
+publications is done in Python rather than by asking each API to filter —
+walking the returned rows once and matching by URL/path/id is simpler than
+any of these APIs' filter syntax and identical in cost, since a whole day's
+results (or, for Instagram/LinkedIn, one post's own insights) is already
+one HTTP response either way.
+
+Search Console and GA4 read from a separate ``AnalyticsCredential`` (a
+Google service account, configured once per workspace independent of any
+channel). Instagram and LinkedIn need no separate credential at all — they
+read with the *same* ``ChannelCredential`` token already stored for
+publishing, since it is the same API the post itself went out through.
 """
 
 from __future__ import annotations
@@ -21,12 +30,20 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.connectors import ga4 as ga4_connector
+from app.connectors import instagram as instagram_connector
+from app.connectors import linkedin as linkedin_connector
 from app.connectors import search_console as search_console_connector
 from app.connectors.analytics_credentials import Ga4Credential, SearchConsoleCredential
-from app.db.enums import AnalyticsProvider, PackageStatus, PublicationStatus
-from app.db.models import AnalyticsCredential, ContentPackage, MetricSnapshot, Publication
-from app.services import ab_testing
-from app.services import analytics_credentials
+from app.connectors.credentials import InstagramCredential, LinkedInCredential
+from app.db.enums import AnalyticsProvider, Channel, PackageStatus, PublicationStatus
+from app.db.models import (
+    AnalyticsCredential,
+    ChannelCredential,
+    ContentPackage,
+    MetricSnapshot,
+    Publication,
+)
+from app.services import ab_testing, analytics_credentials, channel_credentials
 from app.services import packages as package_service
 
 logger = logging.getLogger(__name__)
@@ -170,6 +187,86 @@ def _pull_ga4(
     return written
 
 
+def _pull_instagram(
+    session: Session,
+    credential: ChannelCredential,
+    publications: list[Publication],
+    day: date,
+    *,
+    client=None,
+) -> set[uuid.UUID]:
+    payload = channel_credentials.decrypt_for_publish(credential)
+    assert isinstance(payload, InstagramCredential)  # noqa: S101 - schema-enforced by channel
+
+    insights = instagram_connector.InstagramInsightsClient(client)
+    written: set[uuid.UUID] = set()
+    for publication in publications:
+        if publication.channel is not Channel.INSTAGRAM or not publication.external_id:
+            continue
+        try:
+            data = insights.media_insights(payload, publication.external_id)
+        except Exception:  # noqa: BLE001 - one post's failure must not sink the sweep
+            logger.exception(
+                "instagram insights pull failed", extra={"publication_id": str(publication.id)}
+            )
+            continue
+        if not data:
+            continue
+        _upsert_snapshot(
+            session,
+            tenant_id=publication.tenant_id,
+            publication_id=publication.id,
+            source=Channel.INSTAGRAM.value,
+            captured_for=day,
+            impressions=None,
+            clicks=None,
+            position=None,
+            metrics=data,
+        )
+        written.add(publication.id)
+    return written
+
+
+def _pull_linkedin(
+    session: Session,
+    credential: ChannelCredential,
+    publications: list[Publication],
+    day: date,
+    *,
+    client=None,
+) -> set[uuid.UUID]:
+    payload = channel_credentials.decrypt_for_publish(credential)
+    assert isinstance(payload, LinkedInCredential)  # noqa: S101 - schema-enforced by channel
+
+    insights = linkedin_connector.LinkedInInsightsClient(client)
+    written: set[uuid.UUID] = set()
+    for publication in publications:
+        if publication.channel is not Channel.LINKEDIN or not publication.external_id:
+            continue
+        try:
+            stats = insights.share_statistics(payload, publication.external_id)
+        except Exception:  # noqa: BLE001 - one post's failure must not sink the sweep
+            logger.exception(
+                "linkedin insights pull failed", extra={"publication_id": str(publication.id)}
+            )
+            continue
+        if not stats:
+            continue
+        _upsert_snapshot(
+            session,
+            tenant_id=publication.tenant_id,
+            publication_id=publication.id,
+            source=Channel.LINKEDIN.value,
+            captured_for=day,
+            impressions=stats.get("impressions"),
+            clicks=stats.get("clicks"),
+            position=None,
+            metrics={k: v for k, v in stats.items() if k not in {"impressions", "clicks"}},
+        )
+        written.add(publication.id)
+    return written
+
+
 def pull_metrics_for_workspace(
     session: Session,
     workspace_id: uuid.UUID,
@@ -177,16 +274,18 @@ def pull_metrics_for_workspace(
     *,
     search_console_client=None,
     ga4_client=None,
+    instagram_client=None,
+    linkedin_client=None,
 ) -> int:
     """Pull and store one day's metrics for every published, measurable
     publication in a workspace. Returns how many snapshot rows were written
-    — one publication measured by both providers counts twice, since that
-    is two rows in ``metric_snapshot``.
+    — one publication measured by more than one provider counts once per
+    provider, since each is its own row in ``metric_snapshot``.
 
     A provider with no active credential is skipped quietly — most
-    workspaces will only ever configure one of the two. A provider whose
+    workspaces will only ever configure some of the four. A provider whose
     credential *is* configured but whose request fails is logged and
-    skipped too, so one broken integration never blocks the other.
+    skipped too, so one broken integration never blocks the others.
     """
     day = day or yesterday()
     publications = _published_publications(session, workspace_id)
@@ -208,6 +307,28 @@ def pull_metrics_for_workspace(
             logger.exception(
                 "metrics pull failed",
                 extra={"workspace_id": str(workspace_id), "provider": provider.value},
+            )
+            continue
+        row_count += len(matched)
+        measured_publication_ids |= matched
+
+    for channel, social_puller, social_client in (
+        (Channel.INSTAGRAM, _pull_instagram, instagram_client),
+        (Channel.LINKEDIN, _pull_linkedin, linkedin_client),
+    ):
+        channel_credential = channel_credentials.active_credential_or_none(
+            session, workspace_id, channel
+        )
+        if channel_credential is None:
+            continue
+        try:
+            matched = social_puller(
+                session, channel_credential, publications, day, client=social_client
+            )
+        except Exception:  # noqa: BLE001 - one channel's failure must not sink the sweep
+            logger.exception(
+                "metrics pull failed",
+                extra={"workspace_id": str(workspace_id), "provider": channel.value},
             )
             continue
         row_count += len(matched)

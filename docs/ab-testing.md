@@ -30,13 +30,15 @@ hook's own effect. `tests/test_ab_testing.py`'s
 `test_a_clear_winner_is_decided_by_ctr_not_raw_clicks` locks this in: arm A
 gets more raw clicks but a much lower CTR, and B still wins.
 
-CTR needs both clicks and impressions, which today only Search Console
-provides (`app.services.analytics._pull_search_console`) — GA4 carries
-neither, and the not-yet-built social insights connectors (task #45) do
-not either. A package's non-WordPress channels simply have no A/B result
-yet; that is an honest gap in the data available today, not a bug in the
-comparison itself. Once #45 lands with real click/impression numbers for a
-social channel, `evaluate_package()` needs no changes to pick it up.
+CTR needs both clicks and impressions, which Search Console
+(`app.services.analytics._pull_search_console`) and, as of task #45,
+LinkedIn's own share statistics (`_pull_linkedin`, `docs/social-insights.md`)
+both provide — GA4 and Instagram's Insights API carry neither. A package's
+GA4-only or Instagram channel simply has no A/B result; that is an honest
+gap in what those two APIs expose, not a bug in the comparison itself.
+Wiring LinkedIn's real numbers needed no change to `evaluate_package()` at
+all — it already reads clicks/impressions generically off whatever is in
+`MetricSnapshot`.
 
 ## Re-evaluated, not decided once
 

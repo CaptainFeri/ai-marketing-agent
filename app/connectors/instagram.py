@@ -147,6 +147,54 @@ class InstagramConnector:
         return str(body["id"])
 
 
+#: Metrics requested by ``InstagramInsightsClient`` (handoff section 11:
+#: "دریافت آمار Insights از کانال‌های اجتماعی"). Scoped to what a single
+#: FEED image post actually supports today — reach, saves and the three
+#: engagement counts — since only that post shape is wired up to publish
+#: yet (task #50 covers carousels/reels, which use different metric names
+#: such as ``plays``).
+INSIGHTS_METRICS = ("reach", "likes", "comments", "saved", "shares")
+
+
+class InstagramInsightsClient:
+    """``GET /{media-id}/insights`` — per-post engagement numbers for the
+    daily metrics sweep (``app.services.analytics``). A separate class from
+    :class:`InstagramConnector` since publishing and reading insights are
+    two independent operations that happen to share one API and one
+    credential, the same split ``SearchConsoleClient``/``Ga4Client`` make
+    from their own connectors in ``app.services.analytics``.
+    """
+
+    def __init__(self, client: httpx.Client | None = None) -> None:
+        self._client = client
+
+    def media_insights(self, credential: InstagramCredential, media_id: str) -> dict[str, int]:
+        client = self._client or httpx.Client(timeout=_TIMEOUT)
+        owns_client = self._client is None
+        try:
+            response = client.get(
+                f"{BASE_URL}/{media_id}/insights",
+                params={
+                    "metric": ",".join(INSIGHTS_METRICS),
+                    "access_token": credential.access_token,
+                },
+            )
+        except httpx.HTTPError as exc:
+            raise ConnectorError(
+                f"Instagram insights request failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            if owns_client:
+                client.close()
+
+        body = _raise_for_graph_error(response, "reading media insights")
+        return {
+            entry["name"]: entry["values"][0]["value"]
+            for entry in body.get("data", [])
+            if entry.get("values")
+        }
+
+
 def _compose_caption(content: PublishContent) -> str:
     parts = [part for part in (content.hook, content.body) if part]
     text = "\n\n".join(parts) if parts else content.body

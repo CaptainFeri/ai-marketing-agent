@@ -86,8 +86,11 @@ fa/en/ar labels per question.
 - `/workspaces/{id}/analytics` — create and deactivate Search Console/GA4
   credentials (a pasted Google service account key), and a manual "pull now"
   for backfilling a day the nightly sweep missed. See `docs/analytics.md`.
-  The package detail page's own metrics table (`GET
-  /packages/{id}/metrics`) is the "basic dashboard" the handoff asks for.
+  The same nightly sweep also pulls Instagram/LinkedIn post insights, with
+  no separate credential of their own (`docs/social-insights.md`). The
+  package detail page's own metrics table (`GET /packages/{id}/metrics`) is
+  the "basic dashboard" the handoff asks for, showing every source
+  together.
 
 ## Running it locally
 

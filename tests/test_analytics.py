@@ -20,7 +20,7 @@ from sqlalchemy import select
 
 from app.db.enums import AnalyticsProvider, Channel, PackageStatus, PublicationStatus
 from app.db.models import ContentPackage, MetricSnapshot, Publication
-from app.services import analytics, analytics_credentials
+from app.services import analytics, analytics_credentials, channel_credentials
 from tests.conftest import requires_db
 
 pytestmark = requires_db
@@ -72,6 +72,24 @@ def ga4_client(rows: list[dict]) -> httpx.Client:
         if "runReport" not in request.url.path:
             return token_response()
         return httpx.Response(200, json={"rows": rows})
+
+    return mock_client(handler)
+
+
+def instagram_client(insights_by_media_id: dict[str, list[dict]]) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        media_id = request.url.path.rsplit("/", 2)[-2]
+        return httpx.Response(200, json={"data": insights_by_media_id.get(media_id, [])})
+
+    return mock_client(handler)
+
+
+def linkedin_client(stats_by_urn: dict[str, dict]) -> httpx.Client:
+    def handler(request: httpx.Request) -> httpx.Response:
+        urn = request.url.params.get("shares[0]")
+        stats = stats_by_urn.get(urn or "")
+        elements = [{"totalShareStatistics": stats}] if stats else []
+        return httpx.Response(200, json={"elements": elements})
 
     return mock_client(handler)
 
@@ -424,6 +442,148 @@ def test_a_pull_that_measures_both_ab_arms_records_a_result(tenant_factory, syst
         select(ABTestResult).where(ABTestResult.package_id == package.id)
     ).one()
     assert result.winner_variant_id == variant_b.id
+
+
+# --------------------------------------------------------------------------
+# Instagram/LinkedIn social insights (handoff section 11, phase 2)
+# --------------------------------------------------------------------------
+@pytest.fixture
+def instagram_package_and_publication(tenant_factory, system_db):
+    tenant, workspace = tenant_factory("acme")
+    package = ContentPackage(
+        tenant_id=tenant.id,
+        workspace_id=workspace.id,
+        title="x",
+        locale="fa",
+        status=PackageStatus.SCHEDULED,
+    )
+    system_db.add(package)
+    system_db.flush()
+    publication = Publication(
+        tenant_id=tenant.id,
+        package_id=package.id,
+        channel=Channel.INSTAGRAM,
+        status=PublicationStatus.PUBLISHED,
+        scheduled_at=datetime.now(UTC),
+        published_at=datetime.now(UTC),
+        external_id="media-1",
+        external_url="https://www.instagram.com/p/media-1/",
+    )
+    system_db.add(publication)
+    system_db.flush()
+    system_db.commit()
+    return tenant, workspace, package, publication
+
+
+def test_instagram_insights_are_matched_by_external_id(
+    instagram_package_and_publication, system_db
+) -> None:
+    tenant, workspace, package, publication = instagram_package_and_publication
+    channel_credentials.create_credential(
+        system_db,
+        tenant.id,
+        workspace.id,
+        Channel.INSTAGRAM,
+        {"access_token": "IGQ...token", "ig_user_id": "17841400000000000"},
+    )
+    system_db.commit()
+
+    insights = {
+        "media-1": [
+            {"name": "reach", "values": [{"value": 300}]},
+            {"name": "likes", "values": [{"value": 25}]},
+        ]
+    }
+    written = analytics.pull_metrics_for_workspace(
+        system_db, workspace.id, DAY, instagram_client=instagram_client(insights)
+    )
+    assert written == 1
+
+    snapshot = system_db.scalars(
+        select(MetricSnapshot).where(MetricSnapshot.publication_id == publication.id)
+    ).one()
+    assert snapshot.source == "instagram"
+    assert snapshot.impressions is None and snapshot.clicks is None
+    assert snapshot.metrics == {"reach": 300, "likes": 25}
+
+
+def test_instagram_insights_with_no_credential_writes_nothing(
+    instagram_package_and_publication, system_db
+) -> None:
+    _, workspace, _, _ = instagram_package_and_publication
+    written = analytics.pull_metrics_for_workspace(
+        system_db, workspace.id, DAY, instagram_client=instagram_client({})
+    )
+    assert written == 0
+
+
+@pytest.fixture
+def linkedin_package_and_publication(tenant_factory, system_db):
+    tenant, workspace = tenant_factory("acme")
+    package = ContentPackage(
+        tenant_id=tenant.id,
+        workspace_id=workspace.id,
+        title="x",
+        locale="fa",
+        status=PackageStatus.SCHEDULED,
+    )
+    system_db.add(package)
+    system_db.flush()
+    publication = Publication(
+        tenant_id=tenant.id,
+        package_id=package.id,
+        channel=Channel.LINKEDIN,
+        status=PublicationStatus.PUBLISHED,
+        scheduled_at=datetime.now(UTC),
+        published_at=datetime.now(UTC),
+        external_id="urn:li:share:1",
+        external_url="https://www.linkedin.com/feed/update/urn:li:share:1/",
+    )
+    system_db.add(publication)
+    system_db.flush()
+    system_db.commit()
+    return tenant, workspace, package, publication
+
+
+def test_linkedin_insights_carry_real_impressions_and_clicks(
+    linkedin_package_and_publication, system_db
+) -> None:
+    """Unlike Instagram (reach/engagement only), LinkedIn's own statistics
+    API carries real impressions and clicks -- so a LinkedIn hook A/B pair
+    becomes CTR-comparable (``app.services.ab_testing``) the moment both
+    arms have this data, with no further wiring needed."""
+    tenant, workspace, package, publication = linkedin_package_and_publication
+    channel_credentials.create_credential(
+        system_db,
+        tenant.id,
+        workspace.id,
+        Channel.LINKEDIN,
+        {"access_token": "AQV...token", "organization_urn": "urn:li:organization:12345"},
+    )
+    system_db.commit()
+
+    stats = {
+        "urn:li:share:1": {
+            "impressionCount": 500,
+            "clickCount": 15,
+            "likeCount": 20,
+            "commentCount": 3,
+            "shareCount": 2,
+            "engagement": 0.08,
+        }
+    }
+    written = analytics.pull_metrics_for_workspace(
+        system_db, workspace.id, DAY, linkedin_client=linkedin_client(stats)
+    )
+    assert written == 1
+
+    snapshot = system_db.scalars(
+        select(MetricSnapshot).where(MetricSnapshot.publication_id == publication.id)
+    ).one()
+    assert snapshot.source == "linkedin"
+    assert snapshot.impressions == 500
+    assert snapshot.clicks == 15
+    assert snapshot.metrics == {"likes": 20, "comments": 3, "shares": 2, "engagement": 0.08}
 
 
 

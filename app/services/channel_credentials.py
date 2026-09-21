@@ -97,6 +97,23 @@ def active_credential_for(
     return credential
 
 
+def active_credential_or_none(
+    session: Session, workspace_id: uuid.UUID, channel: Channel, label: str = "default"
+) -> ChannelCredential | None:
+    """Same lookup as :func:`active_credential_for`, but ``None`` rather
+    than raising when nothing is configured — for callers like the social
+    insights sweep (``app.services.analytics``) where an unconfigured
+    channel is the normal case, not an error to fail the whole sweep on."""
+    return session.scalars(
+        select(ChannelCredential).where(
+            ChannelCredential.workspace_id == workspace_id,
+            ChannelCredential.channel == channel,
+            ChannelCredential.label == label,
+            ChannelCredential.is_active.is_(True),
+        )
+    ).one_or_none()
+
+
 def deactivate_credential(session: Session, credential: ChannelCredential) -> None:
     """Soft-delete: kept for audit (which publications used it), just no
     longer offered to new publish attempts."""

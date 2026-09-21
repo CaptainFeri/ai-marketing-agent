@@ -14,7 +14,7 @@ import pytest
 
 from app.connectors.base import ConnectorError, MediaForPublish, PublishContent
 from app.connectors.credentials import InstagramCredential, TelegramCredential
-from app.connectors.instagram import InstagramConnector
+from app.connectors.instagram import InstagramConnector, InstagramInsightsClient
 
 
 def content(**overrides) -> PublishContent:
@@ -202,3 +202,47 @@ def test_refuses_the_wrong_credential_type() -> None:
 
     with pytest.raises(ConnectorError, match="InstagramCredential"):
         connector(handler).publish(content(), TelegramCredential(bot_token="1:a", chat_id="@x"))
+
+
+# --------------------------------------------------------------------------
+# InstagramInsightsClient (handoff section 11: social insights pulling)
+# --------------------------------------------------------------------------
+def test_media_insights_reads_the_requested_metrics() -> None:
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["metric"] = request.url.params["metric"]
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"name": "reach", "values": [{"value": 120}]},
+                    {"name": "likes", "values": [{"value": 8}]},
+                    {"name": "comments", "values": [{"value": 2}]},
+                    {"name": "saved", "values": [{"value": 3}]},
+                    {"name": "shares", "values": [{"value": 1}]},
+                ]
+            },
+        )
+
+    result = InstagramInsightsClient(client(handler)).media_insights(credential(), "media-1")
+    assert seen["path"] == "/v21.0/media-1/insights"
+    assert "reach" in seen["metric"] and "saved" in seen["metric"]
+    assert result == {"reach": 120, "likes": 8, "comments": 2, "saved": 3, "shares": 1}
+
+
+def test_media_insights_ignores_an_entry_with_no_values() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"data": [{"name": "reach", "values": []}]})
+
+    result = InstagramInsightsClient(client(handler)).media_insights(credential(), "media-1")
+    assert result == {}
+
+
+def test_media_insights_error_becomes_a_connector_error() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(400, json={"error": {"message": "Unsupported request"}})
+
+    with pytest.raises(ConnectorError, match="Unsupported request"):
+        InstagramInsightsClient(client(handler)).media_insights(credential(), "media-1")
