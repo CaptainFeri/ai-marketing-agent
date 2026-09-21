@@ -33,6 +33,13 @@ schedule_publication()               a selected variant + a time
 Scheduling is per-channel and can happen one variant at a time as each is
 approved — it does not wait for every channel to be ready together.
 
+It also enforces the workspace's spacing rule (handoff section 11,
+`Workspace.min_publish_spacing_minutes`) — a slot too close to another
+`scheduled`/`publishing`/`published` post on the *same channel* is refused.
+`reschedule_publication()` (`PATCH /packages/{id}/publications/{id}`,
+what the panel's drag-and-drop calendar calls) enforces the same rule. See
+`docs/calendar.md`.
+
 ## Credentials: validated before they are ever encrypted
 
 `app/connectors/credentials.py` defines what each channel needs —

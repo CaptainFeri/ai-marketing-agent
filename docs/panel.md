@@ -69,6 +69,9 @@ fa/en/ar labels per question.
   `suggestion_status` is `running`; nothing is merged into the answers until
   a suggestion is explicitly accepted per question or all at once.
 - `/workspaces/{id}/packages` — create and list content packages.
+- `/workspaces/{id}/calendar` — a drag-and-drop month calendar (Jalali or
+  Gregorian, per workspace) across every package, with the workspace's
+  spacing rule and known holidays. See `docs/calendar.md`.
 - `/workspaces/{id}/packages/{id}` — pipeline step history with per-step
   re-run, gate 1 (text review) when the package is `text_review`, the
   generated channel variants and media gallery, gate 2 (media selection)

@@ -501,6 +501,75 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/calendar": {
+      "get": {
+        "tags": [
+          "workspaces"
+        ],
+        "summary": "Get Calendar",
+        "description": "Every scheduled/published post plus known holidays in one range\n(handoff section 11) — what backs the panel's drag-and-drop calendar.",
+        "operationId": "get_calendar_api_v1_workspaces__workspace_id__calendar_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/briefs": {
       "post": {
         "tags": [
@@ -1667,6 +1736,75 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/packages/{package_id}/publications/{publication_id}": {
+      "patch": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Reschedule Publication",
+        "description": "Move a still-scheduled publication to a new time — the drag-and-drop\ncalendar (handoff section 11) calls this when a chip is dropped on a\ndifferent day; re-checks the workspace's spacing rule.",
+        "operationId": "reschedule_publication_api_v1_packages__package_id__publications__publication_id__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Id"
+            }
+          },
+          {
+            "name": "publication_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Publication Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublicationReschedule"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2999,6 +3137,120 @@
         "type": "object",
         "title": "BrandVoice"
       },
+      "CalendarHolidayOut": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "name_fa": {
+            "type": "string",
+            "title": "Name Fa"
+          },
+          "name_en": {
+            "type": "string",
+            "title": "Name En"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "name_fa",
+          "name_en"
+        ],
+        "title": "CalendarHolidayOut"
+      },
+      "CalendarOut": {
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "calendar": {
+            "type": "string",
+            "title": "Calendar"
+          },
+          "min_publish_spacing_minutes": {
+            "type": "integer",
+            "title": "Min Publish Spacing Minutes"
+          },
+          "publications": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarPublicationOut"
+            },
+            "type": "array",
+            "title": "Publications"
+          },
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/CalendarHolidayOut"
+            },
+            "type": "array",
+            "title": "Holidays"
+          }
+        },
+        "type": "object",
+        "required": [
+          "timezone",
+          "calendar",
+          "min_publish_spacing_minutes",
+          "publications",
+          "holidays"
+        ],
+        "title": "CalendarOut"
+      },
+      "CalendarPublicationOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "package_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Package Id"
+          },
+          "package_title": {
+            "type": "string",
+            "title": "Package Title"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PublicationStatus"
+          },
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduled At"
+          },
+          "external_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "External Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "package_id",
+          "package_title",
+          "channel",
+          "status",
+          "scheduled_at",
+          "external_url"
+        ],
+        "title": "CalendarPublicationOut"
+      },
       "Channel": {
         "type": "string",
         "enum": [
@@ -4121,6 +4373,21 @@
         ],
         "title": "PublicationOut"
       },
+      "PublicationReschedule": {
+        "properties": {
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduled At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheduled_at"
+        ],
+        "title": "PublicationReschedule",
+        "description": "Move an already-scheduled publication to a new time — what the\npanel's drag-and-drop calendar (handoff section 11) calls."
+      },
       "PublicationStatus": {
         "type": "string",
         "enum": [
@@ -5240,6 +5507,13 @@
             "type": "string",
             "title": "Calendar",
             "default": "jalali"
+          },
+          "min_publish_spacing_minutes": {
+            "type": "integer",
+            "maximum": 1440.0,
+            "minimum": 0.0,
+            "title": "Min Publish Spacing Minutes",
+            "default": 60
           }
         },
         "type": "object",
@@ -5288,6 +5562,10 @@
             "type": "string",
             "title": "Calendar"
           },
+          "min_publish_spacing_minutes": {
+            "type": "integer",
+            "title": "Min Publish Spacing Minutes"
+          },
           "is_active": {
             "type": "boolean",
             "title": "Is Active"
@@ -5308,6 +5586,7 @@
           "locales",
           "timezone",
           "calendar",
+          "min_publish_spacing_minutes",
           "is_active",
           "created_at"
         ],
@@ -5374,6 +5653,19 @@
               }
             ],
             "title": "Calendar"
+          },
+          "min_publish_spacing_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1440.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min Publish Spacing Minutes"
           },
           "is_active": {
             "anyOf": [

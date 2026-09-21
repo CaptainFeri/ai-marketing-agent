@@ -34,6 +34,7 @@ from app.schemas.content import (
     PackageOut,
     PublicationCreate,
     PublicationOut,
+    PublicationReschedule,
     TopicCreate,
     TopicOut,
     VariantOut,
@@ -330,6 +331,28 @@ def cancel_publication(
         raise NotFoundError("publication not found on this package")
 
     publishing_service.cancel_publication(session, publication)
+    return PublicationOut.model_validate(publication)
+
+
+@router.patch("/{package_id}/publications/{publication_id}", response_model=PublicationOut)
+def reschedule_publication(
+    package_id: uuid.UUID,
+    publication_id: uuid.UUID,
+    payload: PublicationReschedule,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> PublicationOut:
+    """Move a still-scheduled publication to a new time — the drag-and-drop
+    calendar (handoff section 11) calls this when a chip is dropped on a
+    different day; re-checks the workspace's spacing rule."""
+    package = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, package.workspace_id, Role.EDITOR)
+
+    publication = session.get(Publication, publication_id)
+    if publication is None or publication.package_id != package.id:
+        raise NotFoundError("publication not found on this package")
+
+    publishing_service.reschedule_publication(session, publication, payload.scheduled_at)
     return PublicationOut.model_validate(publication)
 
 

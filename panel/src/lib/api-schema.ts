@@ -217,6 +217,27 @@ export interface paths {
         patch: operations["update_workspace_api_v1_workspaces__workspace_id__patch"];
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Calendar
+         * @description Every scheduled/published post plus known holidays in one range
+         *     (handoff section 11) — what backs the panel's drag-and-drop calendar.
+         */
+        get: operations["get_calendar_api_v1_workspaces__workspace_id__calendar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/briefs": {
         parameters: {
             query?: never;
@@ -573,6 +594,28 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/packages/{package_id}/publications/{publication_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Reschedule Publication
+         * @description Move a still-scheduled publication to a new time — the drag-and-drop
+         *     calendar (handoff section 11) calls this when a chip is dropped on a
+         *     different day; re-checks the workspace's spacing rule.
+         */
+        patch: operations["reschedule_publication_api_v1_packages__package_id__publications__publication_id__patch"];
         trace?: never;
     };
     "/api/v1/packages/{package_id}/gates/{gate}": {
@@ -1059,6 +1102,55 @@ export interface components {
             /** Reading Level */
             reading_level?: string | null;
         };
+        /** CalendarHolidayOut */
+        CalendarHolidayOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Name Fa */
+            name_fa: string;
+            /** Name En */
+            name_en: string;
+        };
+        /** CalendarOut */
+        CalendarOut: {
+            /** Timezone */
+            timezone: string;
+            /** Calendar */
+            calendar: string;
+            /** Min Publish Spacing Minutes */
+            min_publish_spacing_minutes: number;
+            /** Publications */
+            publications: components["schemas"]["CalendarPublicationOut"][];
+            /** Holidays */
+            holidays: components["schemas"]["CalendarHolidayOut"][];
+        };
+        /** CalendarPublicationOut */
+        CalendarPublicationOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Package Id
+             * Format: uuid
+             */
+            package_id: string;
+            /** Package Title */
+            package_title: string;
+            channel: components["schemas"]["Channel"];
+            status: components["schemas"]["PublicationStatus"];
+            /**
+             * Scheduled At
+             * Format: date-time
+             */
+            scheduled_at: string;
+            /** External Url */
+            external_url: string | null;
+        };
         /**
          * Channel
          * @description Handoff section 10.
@@ -1482,6 +1574,18 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * PublicationReschedule
+         * @description Move an already-scheduled publication to a new time — what the
+         *     panel's drag-and-drop calendar (handoff section 11) calls.
+         */
+        PublicationReschedule: {
+            /**
+             * Scheduled At
+             * Format: date-time
+             */
+            scheduled_at: string;
         };
         /**
          * PublicationStatus
@@ -1921,6 +2025,11 @@ export interface components {
              * @default jalali
              */
             calendar: string;
+            /**
+             * Min Publish Spacing Minutes
+             * @default 60
+             */
+            min_publish_spacing_minutes: number;
         };
         /** WorkspaceOut */
         WorkspaceOut: {
@@ -1946,6 +2055,8 @@ export interface components {
             timezone: string;
             /** Calendar */
             calendar: string;
+            /** Min Publish Spacing Minutes */
+            min_publish_spacing_minutes: number;
             /** Is Active */
             is_active: boolean;
             /**
@@ -1966,6 +2077,8 @@ export interface components {
             timezone?: string | null;
             /** Calendar */
             calendar?: string | null;
+            /** Min Publish Spacing Minutes */
+            min_publish_spacing_minutes?: number | null;
             /** Is Active */
             is_active?: boolean | null;
         };
@@ -2346,6 +2459,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WorkspaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_calendar_api_v1_workspaces__workspace_id__calendar_get: {
+        parameters: {
+            query: {
+                start: string;
+                end: string;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarOut"];
                 };
             };
             /** @description Validation Error */
@@ -3032,6 +3179,42 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reschedule_publication_api_v1_packages__package_id__publications__publication_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                package_id: string;
+                publication_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PublicationReschedule"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

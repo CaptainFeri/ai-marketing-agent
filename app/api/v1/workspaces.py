@@ -3,17 +3,24 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date, timedelta
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import Principal, assert_workspace_role, get_db, get_principal, require_role
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError, InvalidStateError, NotFoundError
 from app.db.enums import Role
 from app.db.models import BrandBrief, Workspace
 from app.schemas.brief import BrandBriefCreate, BrandBriefOut
+from app.schemas.calendar import CalendarOut
 from app.schemas.tenant import WorkspaceCreate, WorkspaceOut, WorkspaceUpdate
+from app.services import calendar as calendar_service
+
+#: A calendar view wide enough for a real planning horizon, narrow enough
+#: that a mistyped range can never turn into an unbounded table scan.
+MAX_CALENDAR_RANGE_DAYS = 366
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -79,6 +86,25 @@ def update_workspace(
         setattr(workspace, field, value)
     session.flush()
     return WorkspaceOut.model_validate(workspace)
+
+
+@router.get("/{workspace_id}/calendar", response_model=CalendarOut)
+def get_calendar(
+    workspace_id: uuid.UUID,
+    start: date = Query(...),
+    end: date = Query(...),
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> CalendarOut:
+    """Every scheduled/published post plus known holidays in one range
+    (handoff section 11) — what backs the panel's drag-and-drop calendar."""
+    workspace = _get_workspace(session, workspace_id)
+    assert_workspace_role(principal, workspace_id, Role.VIEWER)
+    if end < start:
+        raise InvalidStateError("end must not be before start")
+    if (end - start) > timedelta(days=MAX_CALENDAR_RANGE_DAYS):
+        raise InvalidStateError(f"range cannot exceed {MAX_CALENDAR_RANGE_DAYS} days")
+    return calendar_service.workspace_calendar(session, workspace, start, end)
 
 
 # --------------------------------------------------------------------------

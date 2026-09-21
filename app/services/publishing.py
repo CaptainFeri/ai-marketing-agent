@@ -17,7 +17,8 @@ the panel than a retry counter that only exists inside Celery.
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,7 +26,7 @@ from sqlalchemy.orm import Session
 from app.connectors import ConnectorError, MediaForPublish, PublishContent, build_connector
 from app.core.errors import InvalidStateError, NotFoundError
 from app.db.enums import Channel, MediaKind, PackageStatus, PublicationStatus
-from app.db.models import ContentPackage, MediaAsset, Publication, Variant
+from app.db.models import ContentPackage, MediaAsset, Publication, Variant, Workspace
 from app.services import channel_credentials, storage
 from app.services import packages as package_service
 
@@ -33,6 +34,63 @@ logger = logging.getLogger(__name__)
 
 #: Handoff section 3, step 6: three attempts, then the operator is alerted.
 MAX_ATTEMPTS = 3
+
+
+#: Publications that still occupy a slot in the audience's feed — a
+#: cancelled or failed one never went out and frees its slot back up.
+_OCCUPIES_A_SLOT = (
+    PublicationStatus.SCHEDULED,
+    PublicationStatus.PUBLISHING,
+    PublicationStatus.PUBLISHED,
+)
+
+
+def _as_aware(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def _check_spacing(
+    session: Session,
+    *,
+    workspace_id: uuid.UUID,
+    channel: Channel,
+    scheduled_at: datetime,
+    exclude_publication_id: uuid.UUID | None = None,
+) -> None:
+    """Handoff section 11: "قوانین فاصله بین پست‌ها" — refuse a slot that
+    lands too close to another post already going out on the same channel,
+    rather than crowding the audience's feed. ``0`` turns the rule off."""
+    workspace = session.get(Workspace, workspace_id)
+    if workspace is None or workspace.min_publish_spacing_minutes <= 0:
+        return
+    window = timedelta(minutes=workspace.min_publish_spacing_minutes)
+    target_at = _as_aware(scheduled_at)
+
+    query = (
+        select(Publication)
+        .join(ContentPackage, Publication.package_id == ContentPackage.id)
+        .where(
+            ContentPackage.workspace_id == workspace_id,
+            Publication.channel == channel,
+            Publication.status.in_(_OCCUPIES_A_SLOT),
+        )
+    )
+    if exclude_publication_id is not None:
+        query = query.where(Publication.id != exclude_publication_id)
+
+    for other in session.scalars(query):
+        other_at = _as_aware(other.scheduled_at)
+        if abs(target_at - other_at) < window:
+            raise InvalidStateError(
+                f"another {channel.value} post is already scheduled for "
+                f"{other_at.isoformat()}, within this workspace's "
+                f"{workspace.min_publish_spacing_minutes}-minute spacing rule",
+                details={
+                    "conflicting_publication_id": str(other.id),
+                    "conflicting_scheduled_at": other_at.isoformat(),
+                    "min_publish_spacing_minutes": workspace.min_publish_spacing_minutes,
+                },
+            )
 
 
 def schedule_publication(
@@ -59,6 +117,12 @@ def schedule_publication(
             "GET /packages/{package_id}/x-export for a manual-publish package instead "
             "of scheduling one"
         )
+    _check_spacing(
+        session,
+        workspace_id=package.workspace_id,
+        channel=variant.channel,
+        scheduled_at=scheduled_at,
+    )
 
     publication = Publication(
         tenant_id=package.tenant_id,
@@ -69,6 +133,35 @@ def schedule_publication(
         scheduled_at=scheduled_at,
     )
     session.add(publication)
+    session.flush()
+    return publication
+
+
+def reschedule_publication(
+    session: Session, publication: Publication, scheduled_at: datetime
+) -> Publication:
+    """Move a still-pending publication to a new time — what the panel's
+    drag-and-drop calendar (handoff section 11) calls when a chip is moved
+    to a different day. Re-checks the same spacing rule
+    ``schedule_publication`` does, excluding the publication's own current
+    slot so moving it a few minutes within its own window is not refused
+    against itself."""
+    if publication.status is not PublicationStatus.SCHEDULED:
+        raise InvalidStateError(
+            "only a scheduled publication can be rescheduled, not one that is "
+            f"{publication.status.value}"
+        )
+    package = session.get(ContentPackage, publication.package_id)
+    if package is None:
+        raise NotFoundError("the publication's own package no longer exists")
+    _check_spacing(
+        session,
+        workspace_id=package.workspace_id,
+        channel=publication.channel,
+        scheduled_at=scheduled_at,
+        exclude_publication_id=publication.id,
+    )
+    publication.scheduled_at = scheduled_at
     session.flush()
     return publication
 

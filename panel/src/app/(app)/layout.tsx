@@ -51,6 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <>
               {navLink(`/workspaces/${workspaceId}/questionnaire`, t("nav.questionnaire"))}
               {navLink(`/workspaces/${workspaceId}/packages`, t("nav.packages"))}
+              {navLink(`/workspaces/${workspaceId}/calendar`, t("nav.calendar"))}
               {navLink(`/workspaces/${workspaceId}/channels`, t("nav.channels"))}
               {navLink(`/workspaces/${workspaceId}/analytics`, t("nav.analytics"))}
               {navLink(`/workspaces/${workspaceId}/quota`, t("nav.quota"))}

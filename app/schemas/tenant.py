@@ -55,6 +55,7 @@ class WorkspaceCreate(BaseModel):
     locales: list[str] = Field(default_factory=lambda: ["fa"])
     timezone: str = "Asia/Tehran"
     calendar: str = "jalali"
+    min_publish_spacing_minutes: int = Field(default=60, ge=0, le=1440)
 
     @field_validator("calendar")
     @classmethod
@@ -77,6 +78,7 @@ class WorkspaceUpdate(BaseModel):
     locales: list[str] | None = None
     timezone: str | None = None
     calendar: str | None = None
+    min_publish_spacing_minutes: int | None = Field(default=None, ge=0, le=1440)
     is_active: bool | None = None
 
 
@@ -89,5 +91,6 @@ class WorkspaceOut(ORMModel):
     locales: list[str]
     timezone: str
     calendar: str
+    min_publish_spacing_minutes: int
     is_active: bool
     created_at: datetime

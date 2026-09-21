@@ -110,6 +110,13 @@ class PublicationCreate(BaseModel):
     scheduled_at: datetime
 
 
+class PublicationReschedule(BaseModel):
+    """Move an already-scheduled publication to a new time — what the
+    panel's drag-and-drop calendar (handoff section 11) calls."""
+
+    scheduled_at: datetime
+
+
 class PublicationOut(ORMModel):
     id: uuid.UUID
     package_id: uuid.UUID

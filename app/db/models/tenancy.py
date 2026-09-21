@@ -115,6 +115,10 @@ class Workspace(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
     timezone: Mapped[str] = mapped_column(String(64), default="Asia/Tehran", nullable=False)
     # Persian (Jalali) or Gregorian calendar in the panel.
     calendar: Mapped[str] = mapped_column(String(16), default="jalali", nullable=False)
+    # Handoff section 11: "قوانین فاصله بین پست‌ها" — a new publication on a
+    # channel that already has one due within this many minutes is refused
+    # rather than crowding the audience's feed.
+    min_publish_spacing_minutes: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     tenant: Mapped[Tenant] = relationship(back_populates="workspaces")

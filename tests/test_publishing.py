@@ -99,6 +99,119 @@ def test_an_unselected_variant_cannot_be_scheduled(system_db, package, variant) 
         publishing.schedule_publication(system_db, package, variant, datetime.now(UTC))
 
 
+# ---------------------------------------------------------------------------
+# spacing rule (handoff section 11: "قوانین فاصله بین پست‌ها")
+# ---------------------------------------------------------------------------
+def make_variant(session, package, *, channel=Channel.WORDPRESS):
+    row = Variant(
+        tenant_id=package.tenant_id,
+        package_id=package.id,
+        channel=channel,
+        body={"hook": "قلاب", "body": "متن پست", "hashtags": []},
+        is_selected=True,
+    )
+    session.add(row)
+    session.flush()
+    return row
+
+
+def test_scheduling_too_close_to_another_post_on_the_same_channel_is_refused(
+    system_db, package, variant
+) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publishing.schedule_publication(system_db, package, variant, when)
+
+    second = make_variant(system_db, package)
+    with pytest.raises(InvalidStateError, match="spacing rule"):
+        publishing.schedule_publication(system_db, package, second, when + timedelta(minutes=30))
+
+
+def test_scheduling_far_enough_apart_is_allowed(system_db, package, variant) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publishing.schedule_publication(system_db, package, variant, when)
+
+    second = make_variant(system_db, package)
+    publication = publishing.schedule_publication(
+        system_db, package, second, when + timedelta(hours=2)
+    )
+    assert publication.status is PublicationStatus.SCHEDULED
+
+
+def test_the_spacing_rule_is_scoped_to_one_channel(system_db, package, variant) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publishing.schedule_publication(system_db, package, variant, when)
+
+    telegram_variant = make_variant(system_db, package, channel=Channel.TELEGRAM)
+    publication = publishing.schedule_publication(
+        system_db, package, telegram_variant, when + timedelta(minutes=1)
+    )
+    assert publication.channel is Channel.TELEGRAM
+
+
+def test_a_zero_spacing_setting_disables_the_rule(system_db, package, variant) -> None:
+    from app.db.models import Workspace
+
+    workspace = system_db.get(Workspace, package.workspace_id)
+    workspace.min_publish_spacing_minutes = 0
+    system_db.flush()
+
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publishing.schedule_publication(system_db, package, variant, when)
+
+    second = make_variant(system_db, package)
+    publication = publishing.schedule_publication(system_db, package, second, when)
+    assert publication.status is PublicationStatus.SCHEDULED
+
+
+# ---------------------------------------------------------------------------
+# rescheduling (drag-and-drop calendar, handoff section 11)
+# ---------------------------------------------------------------------------
+def test_rescheduling_moves_a_scheduled_publication(system_db, package, variant) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publication = publishing.schedule_publication(system_db, package, variant, when)
+
+    new_when = when + timedelta(days=1)
+    publishing.reschedule_publication(system_db, publication, new_when)
+    assert publication.scheduled_at == new_when
+
+
+def test_rescheduling_a_publication_close_to_its_own_old_slot_is_not_refused_against_itself(
+    system_db, package, variant
+) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publication = publishing.schedule_publication(system_db, package, variant, when)
+
+    # Moving it 10 minutes later must not be refused for conflicting with
+    # its own (soon to be replaced) slot.
+    nudged = when + timedelta(minutes=10)
+    publishing.reschedule_publication(system_db, publication, nudged)
+    assert publication.scheduled_at == nudged
+
+
+def test_rescheduling_still_checks_spacing_against_other_posts(
+    system_db, package, variant
+) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publishing.schedule_publication(system_db, package, variant, when)
+
+    second_variant = make_variant(system_db, package)
+    second = publishing.schedule_publication(
+        system_db, package, second_variant, when + timedelta(hours=3)
+    )
+
+    with pytest.raises(InvalidStateError, match="spacing rule"):
+        publishing.reschedule_publication(system_db, second, when + timedelta(minutes=15))
+
+
+def test_only_a_scheduled_publication_can_be_rescheduled(system_db, package, variant) -> None:
+    when = datetime.now(UTC) + timedelta(hours=2)
+    publication = publishing.schedule_publication(system_db, package, variant, when)
+    publishing.cancel_publication(system_db, publication)
+
+    with pytest.raises(InvalidStateError, match="only a scheduled publication"):
+        publishing.reschedule_publication(system_db, publication, when + timedelta(hours=1))
+
+
 def test_an_x_variant_cannot_be_scheduled(system_db, package) -> None:
     """X has no publish connector (handoff section 11) —
     app.services.x_export is how it gets published, not scheduling."""
@@ -238,7 +351,11 @@ def test_gather_content_carries_a_published_siblings_hreflang_url(
             package_id=child.id,
             channel=Channel.WORDPRESS,
             status=PublicationStatus.PUBLISHED,
-            scheduled_at=datetime.now(UTC),
+            # Well in the past: a real "published" post went out at some
+            # earlier time, not literally now — and keeps this out of the
+            # workspace's spacing rule for the still-to-be-scheduled post
+            # below, which is not what this test is about.
+            scheduled_at=datetime.now(UTC) - timedelta(days=7),
             external_url="https://acme.example/en/drill-guide",
         )
     )
