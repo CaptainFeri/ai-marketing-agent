@@ -166,6 +166,11 @@ class Settings(BaseSettings):
     registration_rate_limit_per_hour: int = 5
     registration_rate_limit_per_email_per_hour: int = 3
 
+    # ---- model weights (scripts/download-models.ps1 fetches these on a
+    # separate machine; nothing in this app or docker-compose.yml ever
+    # downloads one itself — see scripts/check_models.py) -----------------
+    models_dir: str = "./models"
+
     @field_validator("supported_locales", mode="before")
     @classmethod
     def _split_locales(cls, value: object) -> object:

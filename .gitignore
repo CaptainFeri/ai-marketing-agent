@@ -6,6 +6,7 @@ venv/
 .env
 .env.*
 !.env.example
+!.env.example.*
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
@@ -18,3 +19,9 @@ data/
 .DS_Store
 celerybeat-schedule*
 dump.rdb
+
+# scripts/download-models.ps1's own output (MODELS_DIR) and
+# app/services/backup.py's output (BACKUP_DIR) — local, large, and
+# regenerated, never committed.
+/models/
+/backups/

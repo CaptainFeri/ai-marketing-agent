@@ -16,6 +16,16 @@ Single server, Docker Compose (handoff section 4). Kubernetes is phase 4.
 cp .env.example .env
 ```
 
+`.env.example` is the canonical, fully-documented reference for every
+setting. Four run modes each have their own file on top of it —
+`.env.example.staging`, `.env.example.production`, `.env.example.gpu-host`
+— each a short delta showing only what changes for that mode (real secrets,
+real Postgres/Redis/S3, which backends are real vs. simulated); copy the
+values you need from the matching one into your real `.env` rather than
+`cp`-ing it directly, since they carry placeholder secrets. See
+`docs/phase-0-checklist.md` for what "GPU host" mode still needs before its
+GPU-backed settings can move past `simulated`.
+
 Fill in, at minimum:
 
 ```bash
@@ -103,6 +113,13 @@ customer has to reconnect every channel.
 
 ## Operating the GPU
 
+- `gpu-worker` runs `scripts/check_models.py` before it starts (its
+  `command` in `docker-compose.yml`) — a pre-flight report of what is
+  present under `MODELS_DIR`, never a download. It only *blocks* startup
+  over a backend that loads weights directly from this container's own
+  disk and is configured to a non-default value (today, just
+  `TTS_BACKEND=production`); a missing `MODELS_DIR` is otherwise fine as
+  long as every backend is still at its simulated/espeak default.
 - `gpu-worker` runs at `--concurrency 1`. Do not raise it. Two processes on one
   24 GB card produce an out-of-memory error, not throughput.
 - `GET /api/v1/gpu/window` reports the loaded model family, the switch count

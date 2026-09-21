@@ -10,6 +10,11 @@ separately (useful when the box that will run the models has no direct
 internet access). See the script's own `Get-Help .\download-models.ps1 -Full`
 for the option list (LLM variant, skipping video/lip-sync, which Piper voice).
 
+Once copied onto the GPU host, `python scripts/check_models.py` reports
+which of those weights are actually present under `MODELS_DIR` — it never
+downloads anything itself; that split is deliberate, see
+`.env.example.gpu-host`.
+
 The platform scaffolding is already in place, so phase 0 can use it: run with
 `GPU_RUNTIME=simulated` to exercise the queue and the accounting, and replace
 the runtime with real adapters as each model is validated.

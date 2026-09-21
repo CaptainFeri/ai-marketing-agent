@@ -71,10 +71,17 @@ services:
   # processes on one 24 GB card means an out-of-memory error, not throughput.
   gpu-worker:
     build: .
+    # check_models.py only reports what is already on disk under
+    # MODELS_DIR — it never fetches anything itself. Fetching is a
+    # separate, manual step (scripts/download-models.ps1, run elsewhere,
+    # then copied onto this host) so a GPU box with no internet access can
+    # still start every service that needs no model at all.
     command: >
-      celery -A app.worker.celery_app worker
-      --queues gpu --concurrency 1 --loglevel INFO --hostname gpu@%h
+      sh -c "python scripts/check_models.py && celery -A app.worker.celery_app worker
+      --queues gpu --concurrency 1 --loglevel INFO --hostname gpu@%h"
     env_file: .env
+    volumes:
+      - ${MODELS_DIR:-./models}:/srv/app/models:ro
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
