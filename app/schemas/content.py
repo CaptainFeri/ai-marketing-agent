@@ -142,12 +142,26 @@ class PackageOut(ORMModel):
     updated_at: datetime
 
 
+class ABTestResultOut(ORMModel):
+    id: uuid.UUID
+    channel: Channel
+    a_variant_id: uuid.UUID
+    b_variant_id: uuid.UUID
+    winner_variant_id: uuid.UUID | None
+    a_clicks: int
+    a_impressions: int
+    b_clicks: int
+    b_impressions: int
+    decided_at: datetime
+
+
 class PackageDetail(PackageOut):
     article: dict | None
     step_runs: list[StepRunOut] = Field(default_factory=list)
     variants: list[VariantOut] = Field(default_factory=list)
     media_assets: list[MediaAssetOut] = Field(default_factory=list)
     language_siblings: list[PackageOut] = Field(default_factory=list)
+    ab_test_results: list[ABTestResultOut] = Field(default_factory=list)
 
 
 class LanguageChildCreate(BaseModel):

@@ -20,9 +20,10 @@ from app.db.enums import (
     Role,
     VideoMode,
 )
-from app.db.models import ContentPackage, MediaAsset, Publication, Topic, Variant
+from app.db.models import ABTestResult, ContentPackage, MediaAsset, Publication, Topic, Variant
 from app.schemas.common import Page
 from app.schemas.content import (
+    ABTestResultOut,
     ApprovalOut,
     ApprovalRequest,
     LanguageChildCreate,
@@ -122,6 +123,12 @@ def get_package(
     detail.language_siblings = [
         PackageOut.model_validate(sibling)
         for sibling in package_service.language_siblings(session, package)
+    ]
+    detail.ab_test_results = [
+        ABTestResultOut.model_validate(row)
+        for row in session.scalars(
+            select(ABTestResult).where(ABTestResult.package_id == package.id)
+        ).all()
     ]
     _attach_media_urls(detail)
     return detail

@@ -799,6 +799,40 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ABTestResultOut */
+        ABTestResultOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            channel: components["schemas"]["Channel"];
+            /**
+             * A Variant Id
+             * Format: uuid
+             */
+            a_variant_id: string;
+            /**
+             * B Variant Id
+             * Format: uuid
+             */
+            b_variant_id: string;
+            /** Winner Variant Id */
+            winner_variant_id: string | null;
+            /** A Clicks */
+            a_clicks: number;
+            /** A Impressions */
+            a_impressions: number;
+            /** B Clicks */
+            b_clicks: number;
+            /** B Impressions */
+            b_impressions: number;
+            /**
+             * Decided At
+             * Format: date-time
+             */
+            decided_at: string;
+        };
         /** AcceptRequest */
         AcceptRequest: {
             /** Question Ids */
@@ -1292,6 +1326,8 @@ export interface components {
             media_assets?: components["schemas"]["MediaAssetOut"][];
             /** Language Siblings */
             language_siblings?: components["schemas"]["PackageOut"][];
+            /** Ab Test Results */
+            ab_test_results?: components["schemas"]["ABTestResultOut"][];
         };
         /** PackageMetricsOut */
         PackageMetricsOut: {

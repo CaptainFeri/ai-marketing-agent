@@ -18,6 +18,7 @@ type NormalizedPackageDetail = PackageDetail & {
   variants: NonNullable<PackageDetail["variants"]>;
   media_assets: NonNullable<PackageDetail["media_assets"]>;
   language_siblings: NonNullable<PackageDetail["language_siblings"]>;
+  ab_test_results: NonNullable<PackageDetail["ab_test_results"]>;
 };
 type Publication = components["schemas"]["PublicationOut"];
 type ApprovalGate = components["schemas"]["ApprovalGate"];
@@ -77,6 +78,7 @@ export default function PackageDetailPage() {
         variants: data.variants ?? [],
         media_assets: data.media_assets ?? [],
         language_siblings: data.language_siblings ?? [],
+        ab_test_results: data.ab_test_results ?? [],
       });
       setPublications(unwrap(pubs));
       const workspaceData = unwrap(workspace);
@@ -242,6 +244,10 @@ export default function PackageDetailPage() {
             ))}
           </div>
         </Card>
+      ) : null}
+
+      {pkg.ab_test_results.length > 0 ? (
+        <ABTestResultsPanel results={pkg.ab_test_results} variants={pkg.variants} />
       ) : null}
 
       {pkg.media_assets.length > 0 ? (
@@ -634,6 +640,78 @@ function LanguageVersionsPanel({
       ) : (
         <p className="text-xs text-muted-foreground">{t("package.language_versions.no_locales_left")}</p>
       )}
+    </Card>
+  );
+}
+
+type ABTestResult = components["schemas"]["ABTestResultOut"];
+
+// Handoff section 11: hook A/B results, compared by click-through rate (not
+// raw clicks — see app.services.ab_testing's module docstring for why) and
+// re-evaluated daily as more metrics arrive, so this always shows the
+// current standing rather than a one-time snapshot.
+function ABTestResultsPanel({
+  results,
+  variants,
+}: {
+  results: ABTestResult[];
+  variants: NormalizedPackageDetail["variants"];
+}) {
+  const { t } = useLocale();
+
+  function hookFor(variantId: string): string {
+    const variant = variants.find((v) => v.id === variantId);
+    const body = variant?.body as { hook?: string } | undefined;
+    return body?.hook ?? variantId;
+  }
+
+  function ctr(clicks: number, impressions: number): string {
+    return impressions > 0 ? `${((clicks / impressions) * 100).toFixed(1)}%` : "—";
+  }
+
+  return (
+    <Card>
+      <h2 className="mb-2 font-medium">{t("package.ab_results.title")}</h2>
+      <div className="flex flex-col gap-3">
+        {results.map((result) => (
+          <div key={result.id} className="rounded-md border border-border p-3 text-sm">
+            <div className="mb-2 text-xs font-medium text-zinc-500">{result.channel}</div>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  ["a", result.a_variant_id, result.a_clicks, result.a_impressions],
+                  ["b", result.b_variant_id, result.b_clicks, result.b_impressions],
+                ] as const
+              ).map(([label, variantId, clicks, impressions]) => (
+                <div
+                  key={label}
+                  className={`rounded-md p-2 ${
+                    result.winner_variant_id === variantId
+                      ? "bg-green-500/10 dark:bg-green-500/15"
+                      : "bg-surface"
+                  }`}
+                >
+                  <div className="mb-1 flex items-center gap-1 text-xs font-medium uppercase">
+                    {label}
+                    {result.winner_variant_id === variantId ? (
+                      <Badge tone="good">{t("package.ab_results.winner")}</Badge>
+                    ) : null}
+                  </div>
+                  <p className="truncate text-xs text-zinc-500" title={hookFor(variantId)}>
+                    {hookFor(variantId)}
+                  </p>
+                  <p className="mt-1 text-xs">
+                    {ctr(clicks, impressions)} · {clicks}/{impressions}
+                  </p>
+                </div>
+              ))}
+            </div>
+            {result.winner_variant_id === null ? (
+              <p className="mt-2 text-xs text-muted-foreground">{t("package.ab_results.tie")}</p>
+            ) : null}
+          </div>
+        ))}
+      </div>
     </Card>
   );
 }

@@ -25,6 +25,7 @@ from app.connectors import search_console as search_console_connector
 from app.connectors.analytics_credentials import Ga4Credential, SearchConsoleCredential
 from app.db.enums import AnalyticsProvider, PackageStatus, PublicationStatus
 from app.db.models import AnalyticsCredential, ContentPackage, MetricSnapshot, Publication
+from app.services import ab_testing
 from app.services import analytics_credentials
 from app.services import packages as package_service
 
@@ -215,7 +216,19 @@ def pull_metrics_for_workspace(
     if measured_publication_ids:
         measured = [pub for pub in publications if pub.id in measured_publication_ids]
         _advance_measured_packages(session, measured)
+        _evaluate_ab_results(session, measured)
     return row_count
+
+
+def _evaluate_ab_results(session: Session, measured_publications: list[Publication]) -> None:
+    """Re-run the A/B comparison (handoff section 11) for every package that
+    just got new metrics data — cheap to call unconditionally since a
+    package with no "a"/"b" pair simply has nothing to compare."""
+    package_ids = {publication.package_id for publication in measured_publications}
+    for package_id in package_ids:
+        package = session.get(ContentPackage, package_id)
+        if package is not None:
+            ab_testing.evaluate_package(session, package)
 
 
 def _advance_measured_packages(session: Session, measured_publications: list[Publication]) -> None:

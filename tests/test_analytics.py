@@ -349,4 +349,81 @@ def test_yesterday_defaults_correctly() -> None:
     assert analytics.yesterday(date(2026, 3, 2)) == date(2026, 3, 1)
 
 
+def test_a_pull_that_measures_both_ab_arms_records_a_result(tenant_factory, system_db) -> None:
+    """The daily metrics sweep is what actually keeps an A/B result fresh
+    (``app.services.ab_testing`` is a pure comparison; this is its wiring)."""
+    from app.db.models import ABTestResult, Variant
+
+    tenant, workspace = tenant_factory("acme")
+    package = ContentPackage(
+        tenant_id=tenant.id,
+        workspace_id=workspace.id,
+        title="راهنمای خرید دریل برقی",
+        locale="fa",
+        status=PackageStatus.MEASURING,
+    )
+    system_db.add(package)
+    system_db.flush()
+
+    variant_a = Variant(
+        tenant_id=tenant.id,
+        package_id=package.id,
+        channel=Channel.WORDPRESS,
+        ab_label="a",
+        body={"hook": "قلاب الف", "body": "متن", "hashtags": []},
+        is_selected=True,
+    )
+    variant_b = Variant(
+        tenant_id=tenant.id,
+        package_id=package.id,
+        channel=Channel.WORDPRESS,
+        ab_label="b",
+        body={"hook": "قلاب ب", "body": "متن", "hashtags": []},
+        is_selected=True,
+    )
+    system_db.add_all([variant_a, variant_b])
+    system_db.flush()
+
+    pub_a = Publication(
+        tenant_id=tenant.id,
+        package_id=package.id,
+        variant_id=variant_a.id,
+        channel=Channel.WORDPRESS,
+        status=PublicationStatus.PUBLISHED,
+        scheduled_at=datetime.now(UTC),
+        published_at=datetime.now(UTC),
+        external_url="https://acme.example/drill-guide-a",
+    )
+    pub_b = Publication(
+        tenant_id=tenant.id,
+        package_id=package.id,
+        variant_id=variant_b.id,
+        channel=Channel.WORDPRESS,
+        status=PublicationStatus.PUBLISHED,
+        scheduled_at=datetime.now(UTC),
+        published_at=datetime.now(UTC),
+        external_url="https://acme.example/drill-guide-b",
+    )
+    system_db.add_all([pub_a, pub_b])
+    system_db.flush()
+
+    analytics_credentials.create_credential(
+        system_db, tenant.id, workspace.id, AnalyticsProvider.SEARCH_CONSOLE, SEARCH_CONSOLE_PAYLOAD
+    )
+    system_db.commit()
+
+    rows = [
+        {"keys": ["https://acme.example/drill-guide-a"], "clicks": 2, "impressions": 200},
+        {"keys": ["https://acme.example/drill-guide-b"], "clicks": 20, "impressions": 200},
+    ]
+    analytics.pull_metrics_for_workspace(
+        system_db, workspace.id, DAY, search_console_client=search_console_client(rows)
+    )
+
+    result = system_db.scalars(
+        select(ABTestResult).where(ABTestResult.package_id == package.id)
+    ).one()
+    assert result.winner_variant_id == variant_b.id
+
+
 

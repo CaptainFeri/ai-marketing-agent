@@ -43,6 +43,9 @@ TENANT_TABLES: tuple[str, ...] = (
     "speaker_profile",
     "publication",
     "metric_snapshot",
+    # ab_test_result is added in 0008 with its own policy; it appears in
+    # TENANT_SCOPED_TABLES, so the drift test looks for it here too.
+    "ab_test_result",
     "channel_credential",
     # analytics_credential is added in 0007 with its own policy; it appears
     # in TENANT_SCOPED_TABLES, so the drift test looks for it here too.
@@ -54,7 +57,7 @@ TENANT_TABLES: tuple[str, ...] = (
 #: Tables in TENANT_TABLES that a later migration creates and polices
 #: itself — present only so the drift check in test_tenant_isolation.py
 #: sees them, never touched by this migration's own DDL loops.
-_CREATED_LATER = frozenset({"brief_draft", "analytics_credential"})
+_CREATED_LATER = frozenset({"brief_draft", "analytics_credential", "ab_test_result"})
 
 POLICY_NAME = "tenant_isolation"
 

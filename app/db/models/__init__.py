@@ -18,6 +18,7 @@ from app.db.models.gpu import (
 )
 from app.db.models.media import MediaAsset, SpeakerProfile
 from app.db.models.publishing import (
+    ABTestResult,
     AnalyticsCredential,
     ChannelCredential,
     MetricSnapshot,
@@ -42,6 +43,7 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "speaker_profile",
     "publication",
     "metric_snapshot",
+    "ab_test_result",
     "channel_credential",
     "analytics_credential",
     "gpu_job",
@@ -49,6 +51,7 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
 )
 
 __all__ = [
+    "ABTestResult",
     "AnalyticsCredential",
     "Approval",
     "Base",

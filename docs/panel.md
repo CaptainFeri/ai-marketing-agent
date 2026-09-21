@@ -75,6 +75,8 @@ fa/en/ar labels per question.
   when the package is `selection`, and publication scheduling once a variant
   is selected. A selected X variant shows a copy-to-post thread instead
   (`docs/x-export.md`) — X has no publish connector to schedule against.
+  Language siblings and a hook A/B results card appear once they exist
+  (`docs/language-children.md`, `docs/ab-testing.md`).
 - `/workspaces/{id}/channels` — create and deactivate WordPress, Telegram,
   Instagram and LinkedIn credentials. Only the channels with a real connector
   (`app/connectors/credentials.py`) are offered; a credential is never

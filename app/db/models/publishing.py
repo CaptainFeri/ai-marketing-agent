@@ -96,6 +96,44 @@ class MetricSnapshot(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Bas
     publication: Mapped[Publication] = relationship(back_populates="metric_snapshots")
 
 
+class ABTestResult(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
+    """The current hook A/B standing for one channel of one package
+    (handoff section 11: "نسخه‌های A/B قلاب و ثبت نتیجه").
+
+    One row per ``(package_id, channel)`` — re-evaluated and upserted on
+    every metrics pull (``app.services.ab_testing``) as more data arrives,
+    rather than decided once and frozen. Both variant FKs cascade: a
+    marketizer re-run deletes and recreates a package's variants
+    (``_replace_variants``), and a stale comparison against variants that no
+    longer exist should disappear with them.
+    """
+
+    __tablename__ = "ab_test_result"
+    __table_args__ = (UniqueConstraint("package_id", "channel", name="package_channel_ab"),)
+
+    package_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("content_package.id", ondelete="CASCADE"), nullable=False
+    )
+    channel: Mapped[Channel] = mapped_column(
+        enum_column(Channel, length=32, name="channel"), nullable=False
+    )
+    a_variant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("variant.id", ondelete="CASCADE"), nullable=False
+    )
+    b_variant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("variant.id", ondelete="CASCADE"), nullable=False
+    )
+    # NULL until decidable, and again if the two arms are still exactly tied.
+    winner_variant_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("variant.id", ondelete="SET NULL")
+    )
+    a_clicks: Mapped[int] = mapped_column(Integer, nullable=False)
+    a_impressions: Mapped[int] = mapped_column(Integer, nullable=False)
+    b_clicks: Mapped[int] = mapped_column(Integer, nullable=False)
+    b_impressions: Mapped[int] = mapped_column(Integer, nullable=False)
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class ChannelCredential(UUIDPrimaryKeyMixin, TenantScopedMixin, TimestampMixin, Base):
     """Per-tenant channel token, encrypted at rest (see ``app.core.crypto``)."""
 

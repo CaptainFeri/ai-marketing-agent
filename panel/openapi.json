@@ -2354,6 +2354,75 @@
   },
   "components": {
     "schemas": {
+      "ABTestResultOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/Channel"
+          },
+          "a_variant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "A Variant Id"
+          },
+          "b_variant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "B Variant Id"
+          },
+          "winner_variant_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Winner Variant Id"
+          },
+          "a_clicks": {
+            "type": "integer",
+            "title": "A Clicks"
+          },
+          "a_impressions": {
+            "type": "integer",
+            "title": "A Impressions"
+          },
+          "b_clicks": {
+            "type": "integer",
+            "title": "B Clicks"
+          },
+          "b_impressions": {
+            "type": "integer",
+            "title": "B Impressions"
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Decided At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "channel",
+          "a_variant_id",
+          "b_variant_id",
+          "winner_variant_id",
+          "a_clicks",
+          "a_impressions",
+          "b_clicks",
+          "b_impressions",
+          "decided_at"
+        ],
+        "title": "ABTestResultOut"
+      },
       "AcceptRequest": {
         "properties": {
           "question_ids": {
@@ -3613,6 +3682,13 @@
             },
             "type": "array",
             "title": "Language Siblings"
+          },
+          "ab_test_results": {
+            "items": {
+              "$ref": "#/components/schemas/ABTestResultOut"
+            },
+            "type": "array",
+            "title": "Ab Test Results"
           }
         },
         "type": "object",

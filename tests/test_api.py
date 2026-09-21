@@ -611,3 +611,62 @@ def test_a_language_child_is_invisible_to_another_tenant(client: TestClient, acm
         json={"locale": "en", "title": "x"},
     )
     assert response.status_code == 404
+
+
+# --------------------------------------------------------------------------
+# A/B result tracking (handoff section 11, phase 2)
+# --------------------------------------------------------------------------
+def test_getting_a_package_includes_its_ab_test_results(client: TestClient, acme) -> None:
+    from datetime import UTC, datetime
+
+    from app.db.enums import Channel
+    from app.db.models import ABTestResult, Variant
+    from app.db.tenancy import system_session
+
+    token = login(client, "owner@acme.example")
+    ws = _workspace_id(client, token)
+    client.post(f"/api/v1/workspaces/{ws}/briefs", headers=auth(token), json=BRIEF)
+    package = client.post(
+        "/api/v1/packages",
+        headers=auth(token),
+        json={"workspace_id": ws, "title": "x", "locale": "fa"},
+    ).json()
+
+    with system_session() as session:
+        variant_a = Variant(
+            tenant_id=acme.id,
+            package_id=package["id"],
+            channel=Channel.WORDPRESS,
+            ab_label="a",
+            body={"hook": "الف", "body": "متن", "hashtags": []},
+        )
+        variant_b = Variant(
+            tenant_id=acme.id,
+            package_id=package["id"],
+            channel=Channel.WORDPRESS,
+            ab_label="b",
+            body={"hook": "ب", "body": "متن", "hashtags": []},
+        )
+        session.add_all([variant_a, variant_b])
+        session.flush()
+        session.add(
+            ABTestResult(
+                tenant_id=acme.id,
+                package_id=package["id"],
+                channel=Channel.WORDPRESS,
+                a_variant_id=variant_a.id,
+                b_variant_id=variant_b.id,
+                winner_variant_id=variant_b.id,
+                a_clicks=2,
+                a_impressions=200,
+                b_clicks=20,
+                b_impressions=200,
+                decided_at=datetime.now(UTC),
+            )
+        )
+
+    detail = client.get(f"/api/v1/packages/{package['id']}", headers=auth(token)).json()
+    assert len(detail["ab_test_results"]) == 1
+    result = detail["ab_test_results"][0]
+    assert result["channel"] == "wordpress"
+    assert result["winner_variant_id"] == result["b_variant_id"]

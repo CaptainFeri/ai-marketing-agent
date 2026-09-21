@@ -57,6 +57,10 @@ this closed — the state machine already allowed both transitions
 (`app.services.packages.ALLOWED_TRANSITIONS`), but nothing had ever
 triggered either one.
 
+The same sweep also re-runs any hook A/B comparison a measured package has
+(`app.services.analytics._evaluate_ab_results` → `app.services.ab_testing`)
+— see `docs/ab-testing.md`.
+
 ## What's real today, and what an operator still has to supply
 
 | Piece | Status |
