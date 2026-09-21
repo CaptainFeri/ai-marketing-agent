@@ -104,12 +104,15 @@ def test_a_telegram_credential_needs_a_token_and_a_chat() -> None:
 
 
 def test_an_unimplemented_channel_is_a_clear_error() -> None:
+    """X has no connector yet (handoff section 11: manual export instead —
+    see app.services.x_export), so it must fail loudly rather than silently
+    accept a credential or a publish nothing will ever use."""
     from app.core.errors import AppError
 
-    with pytest.raises(AppError, match="instagram"):
-        validate_credential(Channel.INSTAGRAM, {})
-    with pytest.raises(AppError, match="instagram"):
-        build_connector(Channel.INSTAGRAM)
+    with pytest.raises(AppError, match="'x' yet"):
+        validate_credential(Channel.X, {})
+    with pytest.raises(AppError, match="'x' yet"):
+        build_connector(Channel.X)
 
 
 # ---------------------------------------------------------------------------

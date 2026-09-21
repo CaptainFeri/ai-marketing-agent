@@ -43,6 +43,12 @@ class MediaForPublish:
     alt_text: str | None = None
     width: int | None = None
     height: int | None = None
+    #: A presigned GET URL for the same bytes, when the storage backend can
+    #: produce one. WordPress and Telegram both accept a raw upload and
+    #: never need this; a connector whose own API expects a fetchable URL
+    #: instead of a request body (Instagram's Content Publishing API) reads
+    #: this and raises if it is missing rather than guessing at one.
+    url: str | None = None
 
 
 @dataclass(frozen=True)

@@ -114,12 +114,17 @@ def gather_content(session: Session, publication: Publication) -> PublishContent
                 extra={"asset_id": str(asset.id), "key": asset.storage_key},
             )
             continue
+        try:
+            url = backend.url(asset.storage_key)
+        except storage.StorageError:
+            url = None
         media.append(
             MediaForPublish(
                 data=data,
                 mime_type=asset.mime_type or "image/png",
                 filename=asset.storage_key.rsplit("/", 1)[-1],
                 alt_text=_alt_text_for(package, asset),
+                url=url,
             )
         )
 

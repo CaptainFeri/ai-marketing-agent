@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from app.connectors.base import Connector
+from app.connectors.instagram import InstagramConnector
+from app.connectors.linkedin import LinkedInConnector
 from app.connectors.telegram import TelegramConnector
 from app.connectors.wordpress import WordPressConnector
 from app.db.enums import Channel
@@ -21,6 +23,8 @@ from app.db.enums import Channel
 CONNECTORS: dict[Channel, Callable[[], Connector]] = {
     Channel.WORDPRESS: WordPressConnector,
     Channel.TELEGRAM: TelegramConnector,
+    Channel.INSTAGRAM: InstagramConnector,
+    Channel.LINKEDIN: LinkedInConnector,
 }
 
 

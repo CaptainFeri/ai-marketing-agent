@@ -74,8 +74,8 @@ fa/en/ar labels per question.
   generated channel variants and media gallery, gate 2 (media selection)
   when the package is `selection`, and publication scheduling once a variant
   is selected.
-- `/workspaces/{id}/channels` — create and deactivate WordPress and Telegram
-  credentials. Only the channels with a real connector
+- `/workspaces/{id}/channels` — create and deactivate WordPress, Telegram,
+  Instagram and LinkedIn credentials. Only the channels with a real connector
   (`app/connectors/credentials.py`) are offered; a credential is never
   editable, only deactivated, so an audit trail of what published survives.
 - `/workspaces/{id}/quota` — today's GPU allocation and what it still buys,

@@ -1,12 +1,14 @@
-# Publishing: WordPress and Telegram
+# Publishing: WordPress, Telegram, Instagram and LinkedIn
 
-Handoff section 10 (phase 1) and section 3, step 6 (three attempts, then an
-operator is alerted). Both connectors are real, working HTTP clients — not
-simulated — tested against `httpx.MockTransport` fixtures that mirror the
-documented WordPress REST API and Telegram Bot API responses. Unlike the
-language and image models, there is no phase-0 weight-measurement blocker
-here: these are fixed, published HTTP contracts, so the code that speaks
-them can be built and verified today.
+Handoff section 10 (phase 1), section 11 (phase 2: Instagram/LinkedIn), and
+section 3, step 6 (three attempts, then an operator is alerted). Every
+connector is a real, working HTTP client — not simulated — tested against
+`httpx.MockTransport` fixtures that mirror each platform's documented
+responses. Unlike the language and image models, there is no phase-0
+weight-measurement blocker here: these are fixed, published HTTP contracts,
+so the code that speaks them can be built and verified today. X has no
+connector — the handoff wants a manual-publish export instead (phase 2,
+not yet built).
 
 ```
 schedule_publication()               a selected variant + a time
@@ -16,7 +18,7 @@ schedule_publication()               a selected variant + a time
                  └─ publishing.attempt()
                       ├─ decrypt the credential
                       ├─ gather_content()      article + selected images, once
-                      ├─ build_connector()      WordPress or Telegram
+                      ├─ build_connector()      WordPress, Telegram, Instagram or LinkedIn
                       └─ connector.publish()    real HTTP, real failure modes
 ```
 
@@ -36,8 +38,13 @@ approved — it does not wait for every channel to be ready together.
 `app/connectors/credentials.py` defines what each channel needs —
 `WordPressCredential` (a site URL, a username, an Application Password — not
 the account's login password; created under *Users → Profile → Application
-Passwords*, revocable on its own) and `TelegramCredential` (a bot token, the
-`chat_id` it posts to). Both are pydantic models with `extra="forbid"`, so a
+Passwords*, revocable on its own), `TelegramCredential` (a bot token, the
+`chat_id` it posts to), `InstagramCredential` (a long-lived access token and
+the Instagram Business Account id — not the `@handle`; the operator looks it
+up once via `GET /{page-id}?fields=instagram_business_account` in Meta's own
+Graph API Explorer) and `LinkedInCredential` (an access token and the
+`urn:li:organization:...` it posts as). Every credential is a pydantic model
+with `extra="forbid"`, so a
 typo'd field is refused at write time rather than discovered on the first
 failed publish. `POST /workspaces/{id}/credentials` needs the admin role —
 higher than the editor role that runs the rest of the pipeline, since this
@@ -80,6 +87,40 @@ attempted yet.
   4096 for a message) rather than letting the API reject an overlong post —
   `PublishResult.details["truncated"]` says whether it happened.
 
+**Instagram** (`app/connectors/instagram.py`, the Graph API's Content
+Publishing flow):
+- always needs a selected image — Instagram's feed API has no text-only
+  post, so a variant with none is refused here with a clear message rather
+  than a confusing one from Meta's API;
+- three calls, always in order: create a container from the image's URL,
+  poll `GET /{container-id}` until `status_code` is `FINISHED` (up to 60s,
+  `_POLL_ATTEMPTS × _POLL_INTERVAL_SECONDS`), then `media_publish`;
+- truncates the caption to Instagram's real 2200-character limit.
+
+**LinkedIn** (`app/connectors/linkedin.py`, the current Posts API — not the
+deprecated `ugcPosts` one it replaced):
+- a selected image, if there is one, is uploaded first
+  (`POST /rest/images?action=initializeUpload`, then a `PUT` of the raw
+  bytes to the one-time `uploadUrl` that returns) and referenced by URN in
+  the post; a text-only post skips this entirely;
+- the new post's id comes back in the `x-restli-id` response header, not
+  the (empty) JSON body — LinkedIn's own contract, not an oversight here;
+- truncates the commentary to a 3000-character limit.
+
+### Instagram and LinkedIn need a publicly reachable image URL
+
+Unlike WordPress and Telegram, both accept only a URL for an image, never a
+request body — Meta's and LinkedIn's own servers fetch it. `gather_content()`
+now attaches a presigned `StorageBackend.url()` to each selected
+`MediaForPublish` for exactly this, and both connectors raise a clear
+`ConnectorError` if it is missing rather than guessing at one.
+
+That URL has to actually be reachable from the outside, though: this
+platform's default MinIO (`docker-compose.yml`) binds to `127.0.0.1` only.
+Publishing to Instagram or LinkedIn in production needs a public bucket or a
+CDN in front of storage — an operator-side infrastructure decision this
+platform does not make for them.
+
 ## The retry state machine lives on the row, not in Celery
 
 Three attempts, then the operator is alerted (handoff section 3, step 6).
@@ -104,20 +145,23 @@ today. Turning that into an actual notification (email, Slack, whatever the
 deployment uses) is a small, separate piece of phase 1/2 work layered on top
 of a signal that already exists and is already tested.
 
-## Reading a selected image without a second HTTP hop
+## Reading a selected image once, handing connectors both forms
 
 `gather_content()` reads each selected `MediaAsset`'s bytes directly from
-`app.services.storage` rather than handing a connector a URL to fetch. The
-platform already has the bytes (it is what generated and stored them), so
-this avoids a presigned URL expiring mid-publish and means a connector never
-depends on the platform's own storage being reachable from wherever the
-request happens to run.
+`app.services.storage` once, and now also attaches a presigned URL to the
+same bytes. WordPress and Telegram both take the raw bytes and never touch
+the URL — no dependency on storage being reachable from wherever the
+request happens to run, and no presigned URL to expire mid-publish. Instagram
+and LinkedIn need the URL instead (see above); each connector reads whichever
+form its own API actually wants.
 
 ## Running without live credentials
 
 Every connector test exercises the real client against `httpx.MockTransport`
-handlers shaped like the documented WordPress and Telegram responses — no
-simulated stand-in exists or is needed, unlike the LLM and image backends.
-`tests/test_publishing_e2e.py` drives the full loop — schedule, sweep,
-attempt, retry, operator alert — the same way; only the outbound HTTP is
-mocked.
+handlers shaped like each platform's documented responses
+(`tests/test_connectors.py` for WordPress/Telegram,
+`tests/test_instagram_connector.py`, `tests/test_linkedin_connector.py`) —
+no simulated stand-in exists or is needed, unlike the LLM and image
+backends. `tests/test_publishing_e2e.py` drives the full loop — schedule,
+sweep, attempt, retry, operator alert — the same way; only the outbound
+HTTP is mocked.

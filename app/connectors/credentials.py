@@ -49,13 +49,41 @@ class TelegramCredential(CredentialPayload):
     chat_id: str = Field(min_length=1, max_length=64)
 
 
+class InstagramCredential(CredentialPayload):
+    """A long-lived access token and the Instagram Business Account it posts
+    to (handoff section 11, phase 2).
+
+    ``ig_user_id`` is the Instagram *Business Account* id, not the
+    `@handle` — obtained from the Facebook Page linked to the account via
+    ``GET /{page-id}?fields=instagram_business_account``, a one-time lookup
+    the operator does in Meta's own Graph API Explorer when connecting the
+    channel; this platform never performs that lookup itself.
+    """
+
+    access_token: str = Field(min_length=1, max_length=1000)
+    ig_user_id: str = Field(min_length=1, max_length=64)
+
+
+class LinkedInCredential(CredentialPayload):
+    """An access token and the organization it posts as (handoff section
+    11, phase 2). ``organization_urn`` is the full URN
+    (``urn:li:organization:12345678``), which is what the UGC Posts API's
+    ``author`` field expects verbatim.
+    """
+
+    access_token: str = Field(min_length=1, max_length=2000)
+    organization_urn: str = Field(min_length=1, max_length=128)
+
+
 #: Which contract validates a credential for each channel. A channel with no
-#: connector yet (Instagram, LinkedIn, ...) has none, which is what makes
-#: storing a credential for it a clear error instead of silently accepted
-#: junk nothing will ever read.
+#: connector yet (X, ...) has none, which is what makes storing a credential
+#: for it a clear error instead of silently accepted junk nothing will ever
+#: read.
 CREDENTIAL_SCHEMAS: dict[Channel, type[CredentialPayload]] = {
     Channel.WORDPRESS: WordPressCredential,
     Channel.TELEGRAM: TelegramCredential,
+    Channel.INSTAGRAM: InstagramCredential,
+    Channel.LINKEDIN: LinkedInCredential,
 }
 
 

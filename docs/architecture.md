@@ -46,10 +46,11 @@ connectors/
   base.py / credentials.py / registry.py
                the Connector protocol, per-channel credential schemas, and
                which class handles which Channel
-  wordpress.py / telegram.py
-               real REST/Bot API clients (docs/publishing.md) — real, not
-               simulated: unlike the model backends these are fixed,
-               published HTTP contracts a test can verify against directly
+  wordpress.py / telegram.py / instagram.py / linkedin.py
+               real REST/Bot/Graph/Posts API clients (docs/publishing.md) —
+               real, not simulated: unlike the model backends these are
+               fixed, published HTTP contracts a test can verify against
+               directly
   markdown_render.py
                an article's markdown sections to WordPress-safe HTML
   worker/

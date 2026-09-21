@@ -10,7 +10,7 @@ import { Badge, Button, Card, ErrorText, Input, Spinner } from "@/components/ui"
 type ChannelCredentialOut = components["schemas"]["ChannelCredentialOut"];
 type Channel = components["schemas"]["Channel"];
 
-const CONNECTED_CHANNELS: Channel[] = ["wordpress", "telegram"];
+const CONNECTED_CHANNELS: Channel[] = ["wordpress", "telegram", "instagram", "linkedin"];
 
 export default function ChannelsPage() {
   const { workspaceId } = useParams<{ workspaceId: string }>();
@@ -26,6 +26,10 @@ export default function ChannelsPage() {
   const [applicationPassword, setApplicationPassword] = useState("");
   const [botToken, setBotToken] = useState("");
   const [chatId, setChatId] = useState("");
+  const [igAccessToken, setIgAccessToken] = useState("");
+  const [igUserId, setIgUserId] = useState("");
+  const [liAccessToken, setLiAccessToken] = useState("");
+  const [liOrganizationUrn, setLiOrganizationUrn] = useState("");
 
   async function load() {
     try {
@@ -46,16 +50,38 @@ export default function ChannelsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId]);
 
+  function credentialFields(): { payload: Record<string, unknown>; publicMetadata: Record<string, unknown> } {
+    switch (channel) {
+      case "wordpress":
+        return {
+          payload: { site_url: siteUrl, username, application_password: applicationPassword },
+          publicMetadata: { site_url: siteUrl },
+        };
+      case "telegram":
+        return { payload: { bot_token: botToken, chat_id: chatId }, publicMetadata: { chat_id: chatId } };
+      case "instagram":
+        return {
+          payload: { access_token: igAccessToken, ig_user_id: igUserId },
+          publicMetadata: { ig_user_id: igUserId },
+        };
+      case "linkedin":
+        return {
+          payload: { access_token: liAccessToken, organization_urn: liOrganizationUrn },
+          publicMetadata: { organization_urn: liOrganizationUrn },
+        };
+      default:
+        // Every Channel value is handled above; a future one (X, YouTube,
+        // Aparat) with no connector yet lands here until it gets its own case.
+        throw new Error(`no credential form for channel: ${channel}`);
+    }
+  }
+
   async function onCreate(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const payload =
-        channel === "wordpress"
-          ? { site_url: siteUrl, username, application_password: applicationPassword }
-          : { bot_token: botToken, chat_id: chatId };
-      const publicMetadata = channel === "wordpress" ? { site_url: siteUrl } : { chat_id: chatId };
+      const { payload, publicMetadata } = credentialFields();
       await apiClient.POST("/api/v1/workspaces/{workspace_id}/credentials", {
         params: { path: { workspace_id: workspaceId } },
         body: { channel, label, payload, public_metadata: publicMetadata },
@@ -65,6 +91,10 @@ export default function ChannelsPage() {
       setApplicationPassword("");
       setBotToken("");
       setChatId("");
+      setIgAccessToken("");
+      setIgUserId("");
+      setLiAccessToken("");
+      setLiOrganizationUrn("");
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("common.error"));
@@ -126,12 +156,42 @@ export default function ChannelsPage() {
                 required
               />
             </div>
-          ) : (
+          ) : null}
+          {channel === "telegram" ? (
             <div className="grid gap-2 sm:grid-cols-2">
               <Input placeholder="bot_token" type="password" value={botToken} onChange={(event) => setBotToken(event.target.value)} required />
               <Input placeholder="chat_id" value={chatId} onChange={(event) => setChatId(event.target.value)} required />
             </div>
-          )}
+          ) : null}
+          {channel === "instagram" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                placeholder="access_token"
+                type="password"
+                value={igAccessToken}
+                onChange={(event) => setIgAccessToken(event.target.value)}
+                required
+              />
+              <Input placeholder="ig_user_id" value={igUserId} onChange={(event) => setIgUserId(event.target.value)} required />
+            </div>
+          ) : null}
+          {channel === "linkedin" ? (
+            <div className="grid gap-2 sm:grid-cols-2">
+              <Input
+                placeholder="access_token"
+                type="password"
+                value={liAccessToken}
+                onChange={(event) => setLiAccessToken(event.target.value)}
+                required
+              />
+              <Input
+                placeholder="organization_urn (urn:li:organization:...)"
+                value={liOrganizationUrn}
+                onChange={(event) => setLiOrganizationUrn(event.target.value)}
+                required
+              />
+            </div>
+          ) : null}
 
           <div>
             <Button type="submit" disabled={busy}>
