@@ -137,6 +137,7 @@ class PackageOut(ORMModel):
     qa_retry_count: int
     qa_score: float | None
     gpu_seconds: float
+    parent_package_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
 
@@ -146,6 +147,14 @@ class PackageDetail(PackageOut):
     step_runs: list[StepRunOut] = Field(default_factory=list)
     variants: list[VariantOut] = Field(default_factory=list)
     media_assets: list[MediaAssetOut] = Field(default_factory=list)
+    language_siblings: list[PackageOut] = Field(default_factory=list)
+
+
+class LanguageChildCreate(BaseModel):
+    """A language version of an existing package (handoff section 11)."""
+
+    locale: str = Field(min_length=2, max_length=8)
+    title: str = Field(min_length=1, max_length=500)
 
 
 class ApprovalRequest(BaseModel):

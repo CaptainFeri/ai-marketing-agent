@@ -441,6 +441,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/packages/{package_id}/language-children": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Language Child
+         * @description A language version of this package (handoff section 11) — shares its
+         *     research, starts fresh from the strategist in its own locale.
+         */
+        post: operations["create_language_child_api_v1_packages__package_id__language_children_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/packages/{package_id}/media/{media_asset_id}": {
         parameters: {
             query?: never;
@@ -1100,6 +1121,16 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /**
+         * LanguageChildCreate
+         * @description A language version of an existing package (handoff section 11).
+         */
+        LanguageChildCreate: {
+            /** Locale */
+            locale: string;
+            /** Title */
+            title: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             /**
@@ -1237,6 +1268,8 @@ export interface components {
             qa_score: number | null;
             /** Gpu Seconds */
             gpu_seconds: number;
+            /** Parent Package Id */
+            parent_package_id: string | null;
             /**
              * Created At
              * Format: date-time
@@ -1257,6 +1290,8 @@ export interface components {
             variants?: components["schemas"]["VariantOut"][];
             /** Media Assets */
             media_assets?: components["schemas"]["MediaAssetOut"][];
+            /** Language Siblings */
+            language_siblings?: components["schemas"]["PackageOut"][];
         };
         /** PackageMetricsOut */
         PackageMetricsOut: {
@@ -1293,6 +1328,8 @@ export interface components {
             qa_score: number | null;
             /** Gpu Seconds */
             gpu_seconds: number;
+            /** Parent Package Id */
+            parent_package_id: string | null;
             /**
              * Created At
              * Format: date-time
@@ -2731,6 +2768,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PackageDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_language_child_api_v1_packages__package_id__language_children_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                package_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LanguageChildCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PackageOut"];
                 };
             };
             /** @description Validation Error */

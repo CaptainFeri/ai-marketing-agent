@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiClient, ApiError, unwrap } from "@/lib/api-client";
 import type { components } from "@/lib/api-schema";
@@ -16,6 +17,7 @@ type NormalizedPackageDetail = PackageDetail & {
   step_runs: NonNullable<PackageDetail["step_runs"]>;
   variants: NonNullable<PackageDetail["variants"]>;
   media_assets: NonNullable<PackageDetail["media_assets"]>;
+  language_siblings: NonNullable<PackageDetail["language_siblings"]>;
 };
 type Publication = components["schemas"]["PublicationOut"];
 type ApprovalGate = components["schemas"]["ApprovalGate"];
@@ -53,6 +55,7 @@ export default function PackageDetailPage() {
   const [pkg, setPkg] = useState<NormalizedPackageDetail | null>(null);
   const [publications, setPublications] = useState<Publication[]>([]);
   const [calendar, setCalendar] = useState<"jalali" | "gregorian">("gregorian");
+  const [workspaceLocales, setWorkspaceLocales] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -73,9 +76,12 @@ export default function PackageDetailPage() {
         step_runs: data.step_runs ?? [],
         variants: data.variants ?? [],
         media_assets: data.media_assets ?? [],
+        language_siblings: data.language_siblings ?? [],
       });
       setPublications(unwrap(pubs));
-      setCalendar(unwrap(workspace).calendar === "jalali" ? "jalali" : "gregorian");
+      const workspaceData = unwrap(workspace);
+      setCalendar(workspaceData.calendar === "jalali" ? "jalali" : "gregorian");
+      setWorkspaceLocales(workspaceData.locales);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("common.error"));
     }
@@ -162,6 +168,17 @@ export default function PackageDetailPage() {
       </div>
 
       {error ? <ErrorText>{error}</ErrorText> : null}
+
+      <LanguageVersionsPanel
+        workspaceId={workspaceId}
+        packageId={packageId}
+        packageLocale={pkg.locale}
+        isChild={pkg.parent_package_id !== null}
+        siblings={pkg.language_siblings}
+        workspaceLocales={workspaceLocales}
+        busy={busy}
+        onCreated={load}
+      />
 
       <Card>
         <h2 className="mb-2 font-medium">{t("package.steps")}</h2>
@@ -510,6 +527,113 @@ function MetricsPanel({ packageId }: { packageId: string }) {
           </table>
         </div>
       ) : null}
+    </Card>
+  );
+}
+
+type PackageOut = components["schemas"]["PackageOut"];
+
+// Handoff section 11: a language "family" is flat — every sibling, whether
+// this package is the root or a child, links to every other sibling plus
+// lets you add another. The server (not this component) resolves the
+// family's true root, so this always works correctly no matter which
+// sibling's page the "add" form is submitted from.
+function LanguageVersionsPanel({
+  workspaceId,
+  packageId,
+  packageLocale,
+  isChild,
+  siblings,
+  workspaceLocales,
+  busy,
+  onCreated,
+}: {
+  workspaceId: string;
+  packageId: string;
+  packageLocale: string;
+  isChild: boolean;
+  siblings: PackageOut[];
+  workspaceLocales: string[];
+  busy: boolean;
+  onCreated: () => Promise<void>;
+}) {
+  const { t } = useLocale();
+  const [locale, setLocale] = useState("");
+  const [title, setTitle] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const takenLocales = new Set([packageLocale, ...siblings.map((s) => s.locale)]);
+  const availableLocales = workspaceLocales.filter((l) => !takenLocales.has(l));
+
+  async function createChild(event: FormEvent) {
+    event.preventDefault();
+    if (!locale || !title.trim()) return;
+    setCreating(true);
+    setError(null);
+    try {
+      await apiClient.POST("/api/v1/packages/{package_id}/language-children", {
+        params: { path: { package_id: packageId } },
+        body: { locale, title: title.trim() },
+      });
+      setLocale("");
+      setTitle("");
+      await onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t("common.error"));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="mb-2 font-medium">{t("package.language_versions.title")}</h2>
+      {isChild ? (
+        <p className="mb-2 text-xs text-muted-foreground">{t("package.language_versions.this_is_a_child")}</p>
+      ) : null}
+      {siblings.length > 0 ? (
+        <div className="mb-3 flex flex-wrap gap-2">
+          {siblings.map((sibling) => (
+            <Link
+              key={sibling.id}
+              href={`/workspaces/${workspaceId}/packages/${sibling.id}`}
+              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-surface"
+            >
+              {sibling.locale} · {sibling.title}
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="mb-3 text-xs text-muted-foreground">{t("package.language_versions.empty")}</p>
+      )}
+      {error ? <ErrorText>{error}</ErrorText> : null}
+      {availableLocales.length > 0 ? (
+        <form onSubmit={createChild} className="flex flex-wrap items-end gap-2">
+          <select
+            value={locale}
+            onChange={(event) => setLocale(event.target.value)}
+            className="rounded-md border border-border bg-transparent px-2 py-2 text-sm"
+          >
+            <option value="">{t("package.language_versions.locale")}</option>
+            {availableLocales.map((l) => (
+              <option key={l} value={l}>
+                {l}
+              </option>
+            ))}
+          </select>
+          <Input
+            placeholder={t("package.language_versions.new_title")}
+            value={title}
+            onChange={(event) => setTitle(event.target.value)}
+          />
+          <Button type="submit" disabled={busy || creating || !locale || !title.trim()}>
+            {t("package.language_versions.create")}
+          </Button>
+        </form>
+      ) : (
+        <p className="text-xs text-muted-foreground">{t("package.language_versions.no_locales_left")}</p>
+      )}
     </Card>
   );
 }

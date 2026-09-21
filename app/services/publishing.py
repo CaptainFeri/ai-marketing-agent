@@ -154,7 +154,34 @@ def content_for_variant(
         article=package.article,
         media=tuple(media),
         utm={"campaign": utm_campaign} if utm_campaign else {},
+        hreflang_alternates=(
+            _hreflang_alternates(session, package) if variant.channel is Channel.WORDPRESS else {}
+        ),
     )
+
+
+def _hreflang_alternates(session: Session, package: ContentPackage) -> dict[str, str]:
+    """Every other language version's own published WordPress URL, keyed by
+    locale (handoff section 11) — empty when there are no siblings, or none
+    of them has a published WordPress post yet."""
+    siblings = package_service.language_siblings(session, package)
+    if not siblings:
+        return {}
+    sibling_ids = [sibling.id for sibling in siblings]
+    rows = session.execute(
+        select(Publication.package_id, Publication.external_url).where(
+            Publication.package_id.in_(sibling_ids),
+            Publication.channel == Channel.WORDPRESS,
+            Publication.status == PublicationStatus.PUBLISHED,
+            Publication.external_url.is_not(None),
+        )
+    ).all()
+    url_by_package = {row.package_id: row.external_url for row in rows}
+    return {
+        sibling.locale: url_by_package[sibling.id]
+        for sibling in siblings
+        if sibling.id in url_by_package
+    }
 
 
 def _alt_text_for(package: ContentPackage, asset: MediaAsset) -> str | None:

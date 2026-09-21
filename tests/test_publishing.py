@@ -11,8 +11,15 @@ import pytest
 
 from app.connectors import ConnectorError, PublishResult
 from app.core.errors import InvalidStateError
-from app.db.enums import Channel, MediaKind, PackageStatus, PublicationStatus
-from app.db.models import ContentPackage, MediaAsset, Variant
+from app.db.enums import (
+    Channel,
+    MediaKind,
+    PackageStatus,
+    PipelineStep,
+    PublicationStatus,
+    StepStatus,
+)
+from app.db.models import ContentPackage, MediaAsset, Publication, StepRun, Variant
 from app.services import channel_credentials as creds
 from app.services import publishing, storage
 from tests.conftest import requires_db
@@ -206,6 +213,60 @@ def test_gather_content_skips_a_selected_asset_missing_from_storage(
     publication = publishing.schedule_publication(system_db, package, variant, datetime.now(UTC))
     content = publishing.gather_content(system_db, publication)
     assert content.media == ()
+
+
+def test_gather_content_carries_a_published_siblings_hreflang_url(
+    system_db, package, variant
+) -> None:
+    from app.services import packages as package_service
+
+    system_db.add(
+        StepRun(
+            tenant_id=package.tenant_id,
+            package_id=package.id,
+            step=PipelineStep.RESEARCHER,
+            status=StepStatus.SUCCEEDED,
+            output_json={"summary": "s"},
+        )
+    )
+    system_db.flush()
+
+    child = package_service.create_language_child(system_db, package.tenant_id, package, "en", "x")
+    system_db.add(
+        Publication(
+            tenant_id=package.tenant_id,
+            package_id=child.id,
+            channel=Channel.WORDPRESS,
+            status=PublicationStatus.PUBLISHED,
+            scheduled_at=datetime.now(UTC),
+            external_url="https://acme.example/en/drill-guide",
+        )
+    )
+    system_db.flush()
+
+    publication = publishing.schedule_publication(system_db, package, variant, datetime.now(UTC))
+    content = publishing.gather_content(system_db, publication)
+    assert content.hreflang_alternates == {"en": "https://acme.example/en/drill-guide"}
+
+
+def test_gather_content_has_no_hreflang_for_a_channel_other_than_wordpress(
+    system_db, package
+) -> None:
+    telegram_variant = Variant(
+        tenant_id=package.tenant_id,
+        package_id=package.id,
+        channel=Channel.TELEGRAM,
+        body={"hook": "قلاب", "body": "متن پست"},
+        is_selected=True,
+    )
+    system_db.add(telegram_variant)
+    system_db.flush()
+
+    publication = publishing.schedule_publication(
+        system_db, package, telegram_variant, datetime.now(UTC)
+    )
+    content = publishing.gather_content(system_db, publication)
+    assert content.hreflang_alternates == {}
 
 
 # ---------------------------------------------------------------------------

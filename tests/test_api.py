@@ -511,3 +511,103 @@ def test_quota_endpoint_reports_what_today_still_buys(client: TestClient, acme) 
 
 def test_unknown_routes_return_json(client: TestClient, acme) -> None:
     assert client.get("/api/v1/nope").status_code == 404
+
+
+# --------------------------------------------------------------------------
+# language children (handoff section 11, phase 2)
+# --------------------------------------------------------------------------
+def _give_the_package_completed_research(package_id: str, tenant_id) -> None:
+    from app.db.enums import PipelineStep, StepStatus
+    from app.db.models import StepRun
+    from app.db.tenancy import system_session
+
+    with system_session() as session:
+        session.add(
+            StepRun(
+                tenant_id=tenant_id,
+                package_id=package_id,
+                step=PipelineStep.RESEARCHER,
+                status=StepStatus.SUCCEEDED,
+                output_json={"summary": "یافته‌های پژوهش"},
+            )
+        )
+
+
+def test_creating_a_language_child(client: TestClient, acme) -> None:
+    token = login(client, "owner@acme.example")
+    ws = _workspace_id(client, token)
+    client.post(f"/api/v1/workspaces/{ws}/briefs", headers=auth(token), json=BRIEF)
+    client.patch(f"/api/v1/workspaces/{ws}", headers=auth(token), json={"locales": ["fa", "en"]})
+    parent = client.post(
+        "/api/v1/packages",
+        headers=auth(token),
+        json={"workspace_id": ws, "title": "راهنمای خرید دریل برقی", "locale": "fa"},
+    ).json()
+    _give_the_package_completed_research(parent["id"], acme.id)
+
+    response = client.post(
+        f"/api/v1/packages/{parent['id']}/language-children",
+        headers=auth(token),
+        json={"locale": "en", "title": "Drill Buying Guide"},
+    )
+    assert response.status_code == 201, response.text
+    child = response.json()
+    assert child["locale"] == "en"
+    assert child["parent_package_id"] == parent["id"]
+
+    detail = client.get(f"/api/v1/packages/{parent['id']}", headers=auth(token)).json()
+    assert [s["id"] for s in detail["language_siblings"]] == [child["id"]]
+
+    child_detail = client.get(f"/api/v1/packages/{child['id']}", headers=auth(token)).json()
+    assert [s["id"] for s in child_detail["language_siblings"]] == [parent["id"]]
+
+
+def test_a_language_child_needs_a_workspace_configured_locale(client: TestClient, acme) -> None:
+    token = login(client, "owner@acme.example")
+    ws = _workspace_id(client, token)
+    client.post(f"/api/v1/workspaces/{ws}/briefs", headers=auth(token), json=BRIEF)
+    parent = client.post(
+        "/api/v1/packages",
+        headers=auth(token),
+        json={"workspace_id": ws, "title": "x", "locale": "fa"},
+    ).json()
+    _give_the_package_completed_research(parent["id"], acme.id)
+
+    response = client.post(
+        f"/api/v1/packages/{parent['id']}/language-children",
+        headers=auth(token),
+        json={"locale": "ar", "title": "x"},
+    )
+    assert response.status_code == 409
+
+
+def test_a_language_child_is_invisible_to_another_tenant(client: TestClient, acme) -> None:
+    token = login(client, "owner@acme.example")
+    ws = _workspace_id(client, token)
+    client.post(f"/api/v1/workspaces/{ws}/briefs", headers=auth(token), json=BRIEF)
+    client.patch(f"/api/v1/workspaces/{ws}", headers=auth(token), json={"locales": ["fa", "en"]})
+    parent = client.post(
+        "/api/v1/packages",
+        headers=auth(token),
+        json={"workspace_id": ws, "title": "x", "locale": "fa"},
+    ).json()
+    _give_the_package_completed_research(parent["id"], acme.id)
+
+    from app.services.auth import create_tenant_with_owner
+
+    create_tenant_with_owner(
+        TenantCreate(
+            slug="globex",
+            name="Globex",
+            owner_email="owner@globex.example",
+            owner_password=PASSWORD,
+        )
+    )
+    other_token = login(client, "owner@globex.example")
+
+    response = client.post(
+        f"/api/v1/packages/{parent['id']}/language-children",
+        headers=auth(other_token),
+        json={"locale": "en", "title": "x"},
+    )
+    assert response.status_code == 404

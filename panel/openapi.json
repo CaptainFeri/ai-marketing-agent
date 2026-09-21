@@ -1278,6 +1278,65 @@
         }
       }
     },
+    "/api/v1/packages/{package_id}/language-children": {
+      "post": {
+        "tags": [
+          "content"
+        ],
+        "summary": "Create Language Child",
+        "description": "A language version of this package (handoff section 11) — shares its\nresearch, starts fresh from the strategist in its own locale.",
+        "operationId": "create_language_child_api_v1_packages__package_id__language_children_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "package_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Package Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LanguageChildCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PackageOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/packages/{package_id}/media/{media_asset_id}": {
       "patch": {
         "tags": [
@@ -3089,6 +3148,29 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "LanguageChildCreate": {
+        "properties": {
+          "locale": {
+            "type": "string",
+            "maxLength": 8,
+            "minLength": 2,
+            "title": "Locale"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "required": [
+          "locale",
+          "title"
+        ],
+        "title": "LanguageChildCreate",
+        "description": "A language version of an existing package (handoff section 11)."
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -3470,6 +3552,18 @@
             "type": "number",
             "title": "Gpu Seconds"
           },
+          "parent_package_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Package Id"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -3512,6 +3606,13 @@
             },
             "type": "array",
             "title": "Media Assets"
+          },
+          "language_siblings": {
+            "items": {
+              "$ref": "#/components/schemas/PackageOut"
+            },
+            "type": "array",
+            "title": "Language Siblings"
           }
         },
         "type": "object",
@@ -3526,6 +3627,7 @@
           "qa_retry_count",
           "qa_score",
           "gpu_seconds",
+          "parent_package_id",
           "created_at",
           "updated_at",
           "article"
@@ -3609,6 +3711,18 @@
             "type": "number",
             "title": "Gpu Seconds"
           },
+          "parent_package_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Package Id"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -3632,6 +3746,7 @@
           "qa_retry_count",
           "qa_score",
           "gpu_seconds",
+          "parent_package_id",
           "created_at",
           "updated_at"
         ],

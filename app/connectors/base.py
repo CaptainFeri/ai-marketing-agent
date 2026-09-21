@@ -69,6 +69,11 @@ class PublishContent:
     article: dict | None
     media: tuple[MediaForPublish, ...]
     utm: dict[str, str]
+    #: locale -> published URL of every other language version of this
+    #: package (handoff section 11: hreflang). Empty when there are none, or
+    #: none has published yet. WordPress is the only connector that reads
+    #: this today — see docs/publishing.md.
+    hreflang_alternates: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

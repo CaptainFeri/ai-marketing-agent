@@ -131,6 +131,18 @@ class WordPressConnector:
             payload["featured_media"] = featured_media_id
 
         meta = self._seo_meta(article, credential)
+        if content.hreflang_alternates:
+            # Same story as ai_marketing_schema_org below: WordPress's REST
+            # API has no native hreflang field (it depends entirely on
+            # which multilingual plugin, if any, a site runs), so this is a
+            # custom meta key a theme snippet reads to print
+            # <link rel="alternate" hreflang="..."> tags in <head> — see
+            # docs/publishing.md.
+            import json
+
+            meta["ai_marketing_hreflang"] = json.dumps(
+                content.hreflang_alternates, ensure_ascii=False
+            )
         if meta:
             payload["meta"] = meta
 

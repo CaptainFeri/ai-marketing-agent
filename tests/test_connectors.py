@@ -258,6 +258,36 @@ def test_wordpress_carries_the_geo_agents_schema_org_as_meta() -> None:
     assert stored["@type"] == "Article"
 
 
+def test_wordpress_carries_hreflang_alternates_as_meta() -> None:
+    """No native REST field for it (docs/publishing.md) — a theme snippet
+    reads this the same way it would for schema_org."""
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(201, json={"id": 1, "link": None})
+
+    WordPressConnector(client=wp_client(handler)).publish(
+        content(article=article(), hreflang_alternates={"en": "https://acme.example/en/x"}),
+        wp_credential(),
+    )
+    stored = json.loads(seen["body"]["meta"]["ai_marketing_hreflang"])
+    assert stored == {"en": "https://acme.example/en/x"}
+
+
+def test_wordpress_omits_hreflang_meta_with_no_alternates() -> None:
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(201, json={"id": 1, "link": None})
+
+    WordPressConnector(client=wp_client(handler)).publish(
+        content(article=article()), wp_credential()
+    )
+    assert "ai_marketing_hreflang" not in seen["body"].get("meta", {})
+
+
 def test_wordpress_error_response_becomes_a_connector_error() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, json={"message": "invalid application password"})

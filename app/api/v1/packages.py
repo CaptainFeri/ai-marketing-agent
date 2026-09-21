@@ -25,6 +25,7 @@ from app.schemas.common import Page
 from app.schemas.content import (
     ApprovalOut,
     ApprovalRequest,
+    LanguageChildCreate,
     MediaAssetOut,
     MediaAssetSelect,
     PackageCreate,
@@ -118,8 +119,33 @@ def get_package(
         raise NotFoundError("content package not found")
     assert_workspace_role(principal, package.workspace_id, Role.VIEWER)
     detail = PackageDetail.model_validate(package)
+    detail.language_siblings = [
+        PackageOut.model_validate(sibling)
+        for sibling in package_service.language_siblings(session, package)
+    ]
     _attach_media_urls(detail)
     return detail
+
+
+@router.post(
+    "/{package_id}/language-children",
+    response_model=PackageOut,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_language_child(
+    package_id: uuid.UUID,
+    payload: LanguageChildCreate,
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> PackageOut:
+    """A language version of this package (handoff section 11) — shares its
+    research, starts fresh from the strategist in its own locale."""
+    parent = package_service.get_package(session, package_id)
+    assert_workspace_role(principal, parent.workspace_id, Role.EDITOR)
+    child = package_service.create_language_child(
+        session, principal.tenant_id, parent, payload.locale, payload.title
+    )
+    return PackageOut.model_validate(child)
 
 
 def _attach_media_urls(detail: PackageDetail) -> None:

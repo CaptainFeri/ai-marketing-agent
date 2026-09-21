@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 
 import pytest
+from sqlalchemy import select
 
 from app.core.errors import InvalidStateError
 from app.db.enums import (
@@ -314,3 +315,145 @@ def test_a_status_round_trips_through_the_database(tenant_factory, system_db) ->
 
     system_db.expire(package)
     assert package.status is PackageStatus.TEXT_REVIEW
+
+
+# --------------------------------------------------------------------------
+# language children (handoff section 11, phase 2)
+# --------------------------------------------------------------------------
+def _researched_package(tenant, workspace, system_db, locale: str = "fa") -> ContentPackage:
+    from app.db.enums import StepStatus
+    from app.db.models import StepRun
+
+    package = ContentPackage(
+        tenant_id=tenant.id,
+        workspace_id=workspace.id,
+        title="راهنمای خرید دریل برقی",
+        locale=locale,
+        status=PackageStatus.DRAFTING,
+    )
+    system_db.add(package)
+    system_db.flush()
+    system_db.add(
+        StepRun(
+            tenant_id=tenant.id,
+            package_id=package.id,
+            step=PipelineStep.RESEARCHER,
+            status=StepStatus.SUCCEEDED,
+            output_json={"summary": "یافته‌های پژوهش", "keywords": [{"term": "دریل"}]},
+        )
+    )
+    system_db.flush()
+    return package
+
+
+@requires_db
+def test_a_language_child_copies_the_parents_research(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = _researched_package(tenant, workspace, system_db)
+
+    child = package_service.create_language_child(system_db, tenant.id, parent, "en", "Drill Guide")
+
+    assert child.parent_package_id == parent.id
+    assert child.locale == "en"
+    assert child.status is PackageStatus.PLANNED
+
+    from app.db.models import StepRun
+
+    child_research = system_db.scalars(
+        select(StepRun).where(
+            StepRun.package_id == child.id, StepRun.step == PipelineStep.RESEARCHER
+        )
+    ).one()
+    assert child_research.output_json["summary"] == "یافته‌های پژوهش"
+
+
+@requires_db
+def test_a_language_child_starts_at_the_strategist(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = _researched_package(tenant, workspace, system_db)
+
+    child = package_service.create_language_child(system_db, tenant.id, parent, "en", "Drill Guide")
+
+    assert package_service.next_text_step(child.current_step) is PipelineStep.STRATEGIST
+
+
+@requires_db
+def test_a_language_child_needs_a_different_locale(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = _researched_package(tenant, workspace, system_db)
+
+    with pytest.raises(InvalidStateError):
+        package_service.create_language_child(system_db, tenant.id, parent, "fa", "x")
+
+
+@requires_db
+def test_a_language_child_needs_a_configured_locale(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = _researched_package(tenant, workspace, system_db)
+
+    with pytest.raises(InvalidStateError):
+        package_service.create_language_child(system_db, tenant.id, parent, "ar", "x")
+
+
+@requires_db
+def test_a_language_child_needs_completed_research(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = ContentPackage(tenant_id=tenant.id, workspace_id=workspace.id, title="x", locale="fa")
+    system_db.add(parent)
+    system_db.flush()
+
+    with pytest.raises(InvalidStateError):
+        package_service.create_language_child(system_db, tenant.id, parent, "en", "x")
+
+
+@requires_db
+def test_only_one_child_per_locale(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = _researched_package(tenant, workspace, system_db)
+    package_service.create_language_child(system_db, tenant.id, parent, "en", "Drill Guide")
+
+    with pytest.raises(InvalidStateError):
+        package_service.create_language_child(system_db, tenant.id, parent, "en", "Drill Guide 2")
+
+
+@requires_db
+def test_language_siblings_finds_the_parent_and_every_other_child(
+    tenant_factory, system_db
+) -> None:
+    tenant, workspace = tenant_factory("acme", locales=["fa", "en", "ar"])
+    parent = _researched_package(tenant, workspace, system_db)
+    en_child = package_service.create_language_child(system_db, tenant.id, parent, "en", "x")
+    ar_child = package_service.create_language_child(system_db, tenant.id, parent, "ar", "y")
+
+    assert {p.id for p in package_service.language_siblings(system_db, parent)} == {
+        en_child.id,
+        ar_child.id,
+    }
+    assert {p.id for p in package_service.language_siblings(system_db, en_child)} == {
+        parent.id,
+        ar_child.id,
+    }
+
+
+@requires_db
+def test_a_package_with_no_children_has_no_siblings(tenant_factory, system_db) -> None:
+    tenant, workspace = tenant_factory("acme")
+    parent = _researched_package(tenant, workspace, system_db)
+    assert package_service.language_siblings(system_db, parent) == []
+
+
+@requires_db
+def test_a_language_family_stays_flat_not_nested(tenant_factory, system_db) -> None:
+    """Adding a language from a child's own page must not nest a
+    grandchild under it — the family is always one root plus N children."""
+    tenant, workspace = tenant_factory("acme", locales=["fa", "en", "ar"])
+    parent = _researched_package(tenant, workspace, system_db)
+    en_child = package_service.create_language_child(system_db, tenant.id, parent, "en", "x")
+
+    ar_child = package_service.create_language_child(system_db, tenant.id, en_child, "ar", "y")
+
+    assert ar_child.parent_package_id == parent.id
+    assert {p.id for p in package_service.language_siblings(system_db, parent)} == {
+        en_child.id,
+        ar_child.id,
+    }

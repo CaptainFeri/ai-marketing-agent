@@ -27,9 +27,10 @@ from app.db.enums import (
     ApprovalGate,
     PackageStatus,
     PipelineStep,
+    StepStatus,
     VideoMode,
 )
-from app.db.models import Approval, BrandBrief, ContentPackage, Workspace
+from app.db.models import Approval, BrandBrief, ContentPackage, StepRun, Workspace
 from app.schemas.content import ApprovalRequest, PackageCreate
 
 #: Every legal move.  Anything not listed is rejected with a 409.
@@ -140,6 +141,109 @@ def create_package(
     session.add(package)
     session.flush()
     return package
+
+
+def create_language_child(
+    session: Session, tenant_id: uuid.UUID, parent: ContentPackage, locale: str, title: str
+) -> ContentPackage:
+    """A language version of ``parent`` (handoff section 11, phase 2:
+    "نسخه‌های زبانی فرزند یک بسته").
+
+    Shares the parent's research rather than re-running it — competitor
+    findings, sourced claims and audience questions do not change with the
+    output language, only the writing does. The parent's most recent
+    successful ``RESEARCHER`` run is copied onto the child as its own
+    ``StepRun``, and the child is rewound to start at ``STRATEGIST``; every
+    step after that runs normally, in the child's own locale
+    (``app_prompt``'s system prompt is parametrised per locale already —
+    decision D3, "a package is written in its own language, not
+    translated").
+
+    ``parent`` is resolved to the true root first if it is itself a
+    language child — the family is always flat (one root, N children),
+    never nested, which is what :func:`language_siblings` assumes.
+    """
+    if parent.parent_package_id is not None:
+        root = session.get(ContentPackage, parent.parent_package_id)
+        if root is None:
+            raise NotFoundError("the parent package's own root no longer exists")
+        parent = root
+
+    workspace = session.get(Workspace, parent.workspace_id)
+    if workspace is None:
+        raise NotFoundError("workspace not found")
+    if locale not in (workspace.locales or [workspace.default_locale]):
+        raise InvalidStateError(
+            f"workspace {workspace.slug!r} is not configured for locale {locale!r}",
+            details={"configured": workspace.locales},
+        )
+    if locale == parent.locale:
+        raise InvalidStateError("a language child must use a different locale than its parent")
+
+    existing = session.scalars(
+        select(ContentPackage.id).where(
+            ContentPackage.parent_package_id == parent.id, ContentPackage.locale == locale
+        )
+    ).first()
+    if existing is not None:
+        raise InvalidStateError(f"this package already has a {locale!r} language child")
+
+    research = session.scalars(
+        select(StepRun)
+        .where(
+            StepRun.package_id == parent.id,
+            StepRun.step == PipelineStep.RESEARCHER,
+            StepRun.status == StepStatus.SUCCEEDED,
+        )
+        .order_by(StepRun.created_at.desc())
+        .limit(1)
+    ).first()
+    if research is None:
+        raise InvalidStateError(
+            "the parent package has no completed research yet; wait for it to reach gate 1"
+        )
+
+    child = ContentPackage(
+        tenant_id=tenant_id,
+        workspace_id=parent.workspace_id,
+        topic_id=parent.topic_id,
+        brand_brief_id=parent.brand_brief_id,
+        parent_package_id=parent.id,
+        title=title,
+        locale=locale,
+        status=PackageStatus.PLANNED,
+        video_mode=parent.video_mode,
+    )
+    session.add(child)
+    session.flush()
+
+    session.add(
+        StepRun(
+            tenant_id=tenant_id,
+            package_id=child.id,
+            step=PipelineStep.RESEARCHER,
+            attempt=1,
+            status=StepStatus.SUCCEEDED,
+            model=research.model,
+            output_json=research.output_json,
+            gpu_seconds=0.0,
+        )
+    )
+    rewind_to(child, PipelineStep.STRATEGIST)
+    session.flush()
+    return child
+
+
+def language_siblings(session: Session, package: ContentPackage) -> list[ContentPackage]:
+    """Every other language version of ``package`` — its parent (if it is
+    itself a child) and every other child of that same parent."""
+    root_id = package.parent_package_id or package.id
+    rows = session.scalars(
+        select(ContentPackage).where(
+            (ContentPackage.id == root_id) | (ContentPackage.parent_package_id == root_id)
+        )
+    ).all()
+    return [row for row in rows if row.id != package.id]
 
 
 def rewind_to(package: ContentPackage, step: PipelineStep) -> None:

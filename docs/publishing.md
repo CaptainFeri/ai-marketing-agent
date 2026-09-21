@@ -73,10 +73,17 @@ separately supplied as safe to show, never the encrypted payload.
   snippet reading that key — not automatic, and out of scope here.
 - falls back to the variant's own short body when no article was assembled
   for the package, so a publish never sends an empty post.
+- when the package has published language siblings (`docs/language-children.md`),
+  writes their locale → URL map under a custom meta key
+  (`ai_marketing_hreflang`), the same pattern as `ai_marketing_schema_org`
+  above — printing real `<link rel="alternate" hreflang="...">` tags in
+  `<head>` needs the same small theme snippet.
 
 **hreflang via WPML or Polylang**, named in the same line of the handoff, is
-plugin-specific enough to need a real site to build correctly against — not
-attempted yet.
+plugin-specific enough to need a real site to build correctly against —
+not attempted. What is built instead is a plugin-agnostic version: the
+`ai_marketing_hreflang` meta key above, which any theme can read regardless
+of which (if any) multilingual plugin the site runs.
 
 **Telegram** (`app/connectors/telegram.py`):
 - `sendPhoto` with a caption when a media asset is selected, `sendMessage`
