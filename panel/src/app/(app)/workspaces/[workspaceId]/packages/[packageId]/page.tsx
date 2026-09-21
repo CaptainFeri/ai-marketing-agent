@@ -301,6 +301,7 @@ export default function PackageDetailPage() {
       ) : null}
 
       <PublicationsPanel
+        workspaceId={workspaceId}
         packageId={packageId}
         publications={publications}
         variants={pkg.variants}
@@ -384,7 +385,19 @@ function GatePanel({
   );
 }
 
+// `datetime-local` inputs read/write local wall-clock time with no
+// timezone — the existing form already relies on `new Date(value)`
+// interpreting that as the browser's own timezone (`schedule()` below), so
+// a suggested ISO instant has to go through the same local getters rather
+// than `toISOString()`, which would shift it to UTC.
+function toDatetimeLocalValue(iso: string): string {
+  const date = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function PublicationsPanel({
+  workspaceId,
   packageId,
   publications,
   variants,
@@ -393,6 +406,7 @@ function PublicationsPanel({
   onScheduled,
   onCancel,
 }: {
+  workspaceId: string;
   packageId: string;
   publications: Publication[];
   variants: NormalizedPackageDetail["variants"];
@@ -405,7 +419,12 @@ function PublicationsPanel({
   const [variantId, setVariantId] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<
+    components["schemas"]["PublishTimeSuggestionOut"] | null
+  >(null);
+  const [suggesting, setSuggesting] = useState(false);
   const selectedVariants = variants.filter((v) => v.is_selected);
+  const selectedChannel = selectedVariants.find((v) => v.id === variantId)?.channel;
 
   async function schedule() {
     if (!variantId || !scheduledAt) return;
@@ -417,9 +436,28 @@ function PublicationsPanel({
       });
       setVariantId("");
       setScheduledAt("");
+      setSuggestion(null);
       await onScheduled();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("common.error"));
+    }
+  }
+
+  async function suggestTime() {
+    if (!selectedChannel) return;
+    setError(null);
+    setSuggesting(true);
+    try {
+      const result = await apiClient.GET("/api/v1/workspaces/{workspace_id}/publish-time-suggestion", {
+        params: { path: { workspace_id: workspaceId }, query: { channel: selectedChannel } },
+      });
+      const data = unwrap(result);
+      setSuggestion(data);
+      setScheduledAt(toDatetimeLocalValue(data.scheduled_at));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t("common.error"));
+    } finally {
+      setSuggesting(false);
     }
   }
 
@@ -448,10 +486,25 @@ function PublicationsPanel({
               </span>
             ) : null}
           </div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={busy || !selectedChannel || suggesting}
+            onClick={suggestTime}
+          >
+            {suggesting ? t("common.loading") : t("package.suggest_time")}
+          </Button>
           <Button type="button" disabled={busy || !variantId || !scheduledAt} onClick={schedule}>
             {t("package.schedule")}
           </Button>
         </div>
+      ) : null}
+      {suggestion ? (
+        <p className="mb-2 text-xs text-muted-foreground">
+          {suggestion.basis === "historical_engagement"
+            ? t("package.suggest_time.historical").replace("{n}", String(suggestion.sample_size))
+            : t("package.suggest_time.rule_of_thumb")}
+        </p>
       ) : null}
       {error ? <ErrorText>{error}</ErrorText> : null}
       <div className="flex flex-col gap-2">

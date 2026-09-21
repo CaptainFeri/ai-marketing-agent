@@ -570,6 +570,63 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/publish-time-suggestion": {
+      "get": {
+        "tags": [
+          "workspaces"
+        ],
+        "summary": "Get Publish Time Suggestion",
+        "description": "The next reasonable time to schedule this channel (handoff section\n11: \"پیشنهاد زمان انتشار\") — rule-of-thumb until the workspace has\nenough of its own engagement history on this channel, then based on\nthat. See ``docs/publish-time.md``.",
+        "operationId": "get_publish_time_suggestion_api_v1_workspaces__workspace_id__publish_time_suggestion_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Channel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishTimeSuggestionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/briefs": {
       "post": {
         "tags": [
@@ -4398,6 +4455,35 @@
           "cancelled"
         ],
         "title": "PublicationStatus"
+      },
+      "PublishTimeSuggestionOut": {
+        "properties": {
+          "scheduled_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Scheduled At"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "hour_of_day": {
+            "type": "integer",
+            "title": "Hour Of Day"
+          },
+          "sample_size": {
+            "type": "integer",
+            "title": "Sample Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scheduled_at",
+          "basis",
+          "hour_of_day",
+          "sample_size"
+        ],
+        "title": "PublishTimeSuggestionOut"
       },
       "PullMetricsRequest": {
         "properties": {

@@ -238,6 +238,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/workspaces/{workspace_id}/publish-time-suggestion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Publish Time Suggestion
+         * @description The next reasonable time to schedule this channel (handoff section
+         *     11: "پیشنهاد زمان انتشار") — rule-of-thumb until the workspace has
+         *     enough of its own engagement history on this channel, then based on
+         *     that. See ``docs/publish-time.md``.
+         */
+        get: operations["get_publish_time_suggestion_api_v1_workspaces__workspace_id__publish_time_suggestion_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/workspaces/{workspace_id}/briefs": {
         parameters: {
             query?: never;
@@ -1592,6 +1615,20 @@ export interface components {
          * @enum {string}
          */
         PublicationStatus: "scheduled" | "publishing" | "published" | "failed" | "cancelled";
+        /** PublishTimeSuggestionOut */
+        PublishTimeSuggestionOut: {
+            /**
+             * Scheduled At
+             * Format: date-time
+             */
+            scheduled_at: string;
+            /** Basis */
+            basis: string;
+            /** Hour Of Day */
+            hour_of_day: number;
+            /** Sample Size */
+            sample_size: number;
+        };
         /**
          * PullMetricsRequest
          * @description Manual trigger for a single day — the daily sweep uses "yesterday"
@@ -2493,6 +2530,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CalendarOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_publish_time_suggestion_api_v1_workspaces__workspace_id__publish_time_suggestion_get: {
+        parameters: {
+            query: {
+                channel: components["schemas"]["Channel"];
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublishTimeSuggestionOut"];
                 };
             };
             /** @description Validation Error */

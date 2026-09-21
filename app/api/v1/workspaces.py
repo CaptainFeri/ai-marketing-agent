@@ -11,12 +11,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import Principal, assert_workspace_role, get_db, get_principal, require_role
 from app.core.errors import ConflictError, InvalidStateError, NotFoundError
-from app.db.enums import Role
+from app.db.enums import Channel, Role
 from app.db.models import BrandBrief, Workspace
 from app.schemas.brief import BrandBriefCreate, BrandBriefOut
-from app.schemas.calendar import CalendarOut
+from app.schemas.calendar import CalendarOut, PublishTimeSuggestionOut
 from app.schemas.tenant import WorkspaceCreate, WorkspaceOut, WorkspaceUpdate
 from app.services import calendar as calendar_service
+from app.services import publish_time as publish_time_service
 
 #: A calendar view wide enough for a real planning horizon, narrow enough
 #: that a mistyped range can never turn into an unbounded table scan.
@@ -105,6 +106,28 @@ def get_calendar(
     if (end - start) > timedelta(days=MAX_CALENDAR_RANGE_DAYS):
         raise InvalidStateError(f"range cannot exceed {MAX_CALENDAR_RANGE_DAYS} days")
     return calendar_service.workspace_calendar(session, workspace, start, end)
+
+
+@router.get("/{workspace_id}/publish-time-suggestion", response_model=PublishTimeSuggestionOut)
+def get_publish_time_suggestion(
+    workspace_id: uuid.UUID,
+    channel: Channel = Query(...),
+    session: Session = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> PublishTimeSuggestionOut:
+    """The next reasonable time to schedule this channel (handoff section
+    11: "پیشنهاد زمان انتشار") — rule-of-thumb until the workspace has
+    enough of its own engagement history on this channel, then based on
+    that. See ``docs/publish-time.md``."""
+    workspace = _get_workspace(session, workspace_id)
+    assert_workspace_role(principal, workspace_id, Role.VIEWER)
+    suggestion = publish_time_service.suggest_publish_time(session, workspace, channel)
+    return PublishTimeSuggestionOut(
+        scheduled_at=suggestion.scheduled_at,
+        basis=suggestion.basis,
+        hour_of_day=suggestion.hour_of_day,
+        sample_size=suggestion.sample_size,
+    )
 
 
 # --------------------------------------------------------------------------

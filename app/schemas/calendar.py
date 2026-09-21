@@ -34,3 +34,12 @@ class CalendarOut(BaseModel):
     min_publish_spacing_minutes: int
     publications: list[CalendarPublicationOut]
     holidays: list[CalendarHolidayOut]
+
+
+class PublishTimeSuggestionOut(BaseModel):
+    scheduled_at: datetime
+    #: "rule_of_thumb" until the channel has enough of the workspace's own
+    #: engagement history, then "historical_engagement".
+    basis: str
+    hour_of_day: int
+    sample_size: int

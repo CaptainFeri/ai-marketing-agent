@@ -276,3 +276,39 @@ def test_rescheduling_too_close_to_another_post_is_refused_via_the_api(
         json={"scheduled_at": (base + timedelta(minutes=15)).isoformat()},
     )
     assert response.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# suggested publish time (handoff section 11, phase 2)
+# ---------------------------------------------------------------------------
+def test_get_publish_time_suggestion_via_the_api(client: TestClient, acme) -> None:
+    token = login(client, "owner@acme.example")
+    ws = _workspace_id(client, token)
+
+    response = client.get(
+        f"/api/v1/workspaces/{ws}/calendar",
+        headers=auth(token),
+        params={"start": "2026-03-01", "end": "2026-03-01"},
+    )
+    assert response.status_code == 200  # sanity: the workspace itself is reachable
+
+    response = client.get(
+        f"/api/v1/workspaces/{ws}/publish-time-suggestion",
+        headers=auth(token),
+        params={"channel": "wordpress"},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["basis"] == "rule_of_thumb"
+    assert body["hour_of_day"] == 9
+    assert body["sample_size"] == 0
+    assert "scheduled_at" in body
+
+
+def test_publish_time_suggestion_needs_a_channel(client: TestClient, acme) -> None:
+    token = login(client, "owner@acme.example")
+    ws = _workspace_id(client, token)
+    response = client.get(
+        f"/api/v1/workspaces/{ws}/publish-time-suggestion", headers=auth(token)
+    )
+    assert response.status_code == 422

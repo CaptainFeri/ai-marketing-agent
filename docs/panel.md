@@ -76,10 +76,12 @@ fa/en/ar labels per question.
   re-run, gate 1 (text review) when the package is `text_review`, the
   generated channel variants and media gallery, gate 2 (media selection)
   when the package is `selection`, and publication scheduling once a variant
-  is selected. A selected X variant shows a copy-to-post thread instead
-  (`docs/x-export.md`) — X has no publish connector to schedule against.
-  Language siblings and a hook A/B results card appear once they exist
-  (`docs/language-children.md`, `docs/ab-testing.md`).
+  is selected. A "Suggest a time" button fills the schedule form with a
+  rule-based or, once there is enough data, an engagement-based suggestion
+  (`docs/publish-time.md`). A selected X variant shows a copy-to-post
+  thread instead (`docs/x-export.md`) — X has no publish connector to
+  schedule against. Language siblings and a hook A/B results card appear
+  once they exist (`docs/language-children.md`, `docs/ab-testing.md`).
 - `/workspaces/{id}/channels` — create and deactivate WordPress, Telegram,
   Instagram and LinkedIn credentials. Only the channels with a real connector
   (`app/connectors/credentials.py`) are offered; a credential is never

@@ -79,4 +79,4 @@ needing pregenerated data the way the backend's static holiday list does.
 | Timezone display | real — `Intl` per-viewer conversion of the stored UTC instant |
 | Holidays (fixed Jalali dates) | real, generated + verified data, documented 2024-2041 range |
 | Holidays (lunar Hijri) | not attempted — no reliable data source, documented gap |
-| Suggested publish time | not this task — see `docs/HANDOFF.md` phase 2 (task #47) |
+| Suggested publish time | real — see `docs/publish-time.md` |

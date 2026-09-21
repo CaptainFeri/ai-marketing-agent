@@ -49,20 +49,22 @@ def _as_aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
-def _check_spacing(
+def find_spacing_conflict(
     session: Session,
     *,
     workspace_id: uuid.UUID,
     channel: Channel,
     scheduled_at: datetime,
     exclude_publication_id: uuid.UUID | None = None,
-) -> None:
-    """Handoff section 11: "قوانین فاصله بین پست‌ها" — refuse a slot that
-    lands too close to another post already going out on the same channel,
-    rather than crowding the audience's feed. ``0`` turns the rule off."""
+) -> Publication | None:
+    """The other post that ``scheduled_at`` would land too close to on the
+    same channel, per the workspace's spacing rule (``0`` turns it off) —
+    or ``None`` if the slot is clear. A non-raising query, unlike
+    ``_check_spacing`` below: ``app.services.publish_time`` uses this to
+    search forward for a free slot rather than fail once."""
     workspace = session.get(Workspace, workspace_id)
     if workspace is None or workspace.min_publish_spacing_minutes <= 0:
-        return
+        return None
     window = timedelta(minutes=workspace.min_publish_spacing_minutes)
     target_at = _as_aware(scheduled_at)
 
@@ -81,16 +83,43 @@ def _check_spacing(
     for other in session.scalars(query):
         other_at = _as_aware(other.scheduled_at)
         if abs(target_at - other_at) < window:
-            raise InvalidStateError(
-                f"another {channel.value} post is already scheduled for "
-                f"{other_at.isoformat()}, within this workspace's "
-                f"{workspace.min_publish_spacing_minutes}-minute spacing rule",
-                details={
-                    "conflicting_publication_id": str(other.id),
-                    "conflicting_scheduled_at": other_at.isoformat(),
-                    "min_publish_spacing_minutes": workspace.min_publish_spacing_minutes,
-                },
-            )
+            return other
+    return None
+
+
+def _check_spacing(
+    session: Session,
+    *,
+    workspace_id: uuid.UUID,
+    channel: Channel,
+    scheduled_at: datetime,
+    exclude_publication_id: uuid.UUID | None = None,
+) -> None:
+    """Handoff section 11: "قوانین فاصله بین پست‌ها" — refuse a slot that
+    lands too close to another post already going out on the same channel,
+    rather than crowding the audience's feed."""
+    conflict = find_spacing_conflict(
+        session,
+        workspace_id=workspace_id,
+        channel=channel,
+        scheduled_at=scheduled_at,
+        exclude_publication_id=exclude_publication_id,
+    )
+    if conflict is None:
+        return
+    workspace = session.get(Workspace, workspace_id)
+    assert workspace is not None  # find_spacing_conflict already loaded it to get here
+    other_at = _as_aware(conflict.scheduled_at)
+    raise InvalidStateError(
+        f"another {channel.value} post is already scheduled for "
+        f"{other_at.isoformat()}, within this workspace's "
+        f"{workspace.min_publish_spacing_minutes}-minute spacing rule",
+        details={
+            "conflicting_publication_id": str(conflict.id),
+            "conflicting_scheduled_at": other_at.isoformat(),
+            "min_publish_spacing_minutes": workspace.min_publish_spacing_minutes,
+        },
+    )
 
 
 def schedule_publication(
