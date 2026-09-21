@@ -68,8 +68,29 @@ which disables retrieval-augmented research but leaves everything else working.
 
 ## Backups (phase 1, week 9)
 
-Daily, and both halves matter — a Postgres dump without the matching MinIO
-objects restores rows pointing at files that no longer exist:
+Automated: `maintenance.run_daily_backup` (`app/services/backup.py`), on the
+Celery beat schedule at 02:30 UTC, before both quota allocation and the
+metrics sweep. Daily, and both halves matter together — a Postgres dump
+without the matching MinIO objects restores rows pointing at files that no
+longer exist:
+
+```
+BACKUP_DIR/
+  2026-01-15/
+    postgres.sql.gz   # gzip'd `pg_dump` of the system database
+    storage/           # every object in MinIO, written at a path mirroring
+                        # its own key (tenant-prefixed, same as in MinIO)
+  2026-01-14/
+  ...
+```
+
+Anything older than `BACKUP_RETENTION_DAYS` (default 14) is pruned on every
+run. `BACKUP_DIR` (default `./backups`) should point at a volume that
+actually leaves the box — a bind mount to networked storage, or whatever the
+operator already uses for host-level backups; this platform does not ship
+an off-box copy step itself.
+
+To back up or restore by hand instead:
 
 ```bash
 docker compose exec -T postgres pg_dump -U app_system ai_marketing | gzip > pg-$(date +%F).sql.gz

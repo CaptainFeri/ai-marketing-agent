@@ -93,6 +93,12 @@ class StorageBackend(Protocol):
         """
         ...
 
+    def list_objects(self, prefix: str = "") -> list[str]:
+        """Every key starting with ``prefix``. Used by the daily backup task
+        to mirror the whole bucket — nothing else in the platform needs to
+        enumerate storage, since every other caller already knows its key."""
+        ...
+
 
 class S3StorageBackend:
     """MinIO (or any S3-compatible store) via boto3."""
@@ -181,6 +187,16 @@ class S3StorageBackend:
         except ClientError:
             self._client.create_bucket(Bucket=self.bucket)
 
+    def list_objects(self, prefix: str = "") -> list[str]:
+        try:
+            keys: list[str] = []
+            paginator = self._client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix):
+                keys.extend(entry["Key"] for entry in page.get("Contents", []))
+            return keys
+        except Exception as exc:  # noqa: BLE001
+            raise StorageError(f"could not list objects under {prefix!r}: {exc}") from exc
+
 
 class InMemoryStorageBackend:
     """Keeps everything in a dict. Thread-safe: the GPU worker is single, but
@@ -216,6 +232,10 @@ class InMemoryStorageBackend:
 
     def url(self, key: str, expires: timedelta = timedelta(hours=1)) -> str:
         return f"memory://{key}"
+
+    def list_objects(self, prefix: str = "") -> list[str]:
+        with self._lock:
+            return [key for key in self._bytes if key.startswith(prefix)]
 
 
 _backend: StorageBackend | None = None

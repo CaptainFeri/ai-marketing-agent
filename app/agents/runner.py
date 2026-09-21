@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from pydantic import BaseModel
 
@@ -18,6 +20,7 @@ from app.agents.context import AgentContext
 from app.agents.llm import LlmClient, LlmError, LlmResponse, get_client
 from app.agents.prompts import budget, system_prompt
 from app.agents.registry import AgentOutputError, json_schema_for
+from app.agents.tracing import get_client as get_tracer
 from app.core.config import settings
 from app.db.enums import PipelineStep
 
@@ -64,22 +67,52 @@ def run_agent(
     base_user = context.render()
     max_tokens, temperature = budget(step)
 
+    tracer = get_tracer()
+    # One trace per package, threaded across every pipeline step (handoff
+    # section 4's "self-hosted Langfuse" requirement) — a step run with no
+    # package (the brief assistant) still gets a trace of its own so it is
+    # not silently dropped, just not grouped with anything else.
+    trace_id = str(context.package_id) if context.package_id else f"agent-{uuid.uuid4().hex}"
+    tracer.trace(
+        trace_id=trace_id,
+        name=f"package {context.package_id}" if context.package_id else f"agent {step.value}",
+        user_id=str(context.tenant_id) if context.tenant_id else None,
+        metadata={"locale": context.locale},
+    )
+
     started = time.monotonic()
     user = base_user
     last_error: AgentOutputError | None = None
     model_seconds = 0.0
 
     for attempt in range(1, max_attempts + 1):
-        response = client.complete(
-            system=system,
-            user=user,
-            schema=schema,
-            schema_name=step.value,
-            max_tokens=max_tokens,
-            # Nudge the temperature down on a retry: the first sampling
-            # already produced something malformed.
-            temperature=temperature if attempt == 1 else max(0.1, temperature / 2),
-        )
+        temperature_used = temperature if attempt == 1 else max(0.1, temperature / 2)
+        generation_started = datetime.now(UTC)
+        try:
+            response = client.complete(
+                system=system,
+                user=user,
+                schema=schema,
+                schema_name=step.value,
+                max_tokens=max_tokens,
+                # Nudge the temperature down on a retry: the first sampling
+                # already produced something malformed.
+                temperature=temperature_used,
+            )
+        except LlmError as exc:
+            tracer.generation(
+                trace_id=trace_id,
+                name=f"{step.value} attempt {attempt}",
+                model=getattr(client, "model", "unknown"),
+                input=user,
+                output=None,
+                started=generation_started,
+                ended=datetime.now(UTC),
+                level="ERROR",
+                status_message=str(exc),
+                metadata={"temperature": temperature_used},
+            )
+            raise
         model_seconds += response.seconds
 
         try:
@@ -97,8 +130,35 @@ def run_agent(
                     "reason": exc.message,
                 },
             )
+            tracer.generation(
+                trace_id=trace_id,
+                name=f"{step.value} attempt {attempt}",
+                model=response.model,
+                input=user,
+                output=response.text,
+                started=generation_started,
+                ended=datetime.now(UTC),
+                prompt_tokens=response.prompt_tokens,
+                completion_tokens=response.completion_tokens,
+                level="WARNING",
+                status_message=exc.message,
+                metadata={"guided": response.guided, "temperature": temperature_used},
+            )
             user = f"{base_user}\n\n{_retry_note(exc)}"
             continue
+
+        tracer.generation(
+            trace_id=trace_id,
+            name=f"{step.value} attempt {attempt}",
+            model=response.model,
+            input=user,
+            output=response.text,
+            started=generation_started,
+            ended=datetime.now(UTC),
+            prompt_tokens=response.prompt_tokens,
+            completion_tokens=response.completion_tokens,
+            metadata={"guided": response.guided, "temperature": temperature_used},
+        )
 
         return AgentRun(
             step=step,

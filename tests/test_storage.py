@@ -127,6 +127,30 @@ def test_a_put_overwrites_the_previous_content(backend: InMemoryStorageBackend) 
     assert backend.get(key) == b"second"
 
 
+def test_list_objects_returns_every_key_under_a_prefix(
+    backend: InMemoryStorageBackend,
+) -> None:
+    backend.put(tenant_key("acme", "images", "a.png"), b"1")
+    backend.put(tenant_key("acme", "images", "b.png"), b"2")
+    backend.put(tenant_key("globex", "images", "c.png"), b"3")
+
+    assert set(backend.list_objects("acme/")) == {
+        tenant_key("acme", "images", "a.png"),
+        tenant_key("acme", "images", "b.png"),
+    }
+    assert set(backend.list_objects()) == {
+        tenant_key("acme", "images", "a.png"),
+        tenant_key("acme", "images", "b.png"),
+        tenant_key("globex", "images", "c.png"),
+    }
+
+
+def test_list_objects_is_empty_for_an_unused_prefix(
+    backend: InMemoryStorageBackend,
+) -> None:
+    assert backend.list_objects("nothing-here/") == []
+
+
 def test_url_is_stable_but_never_a_real_http_address(
     backend: InMemoryStorageBackend,
 ) -> None:

@@ -10,7 +10,9 @@ from sqlalchemy import select
 from app.db.models import Workspace
 from app.db.tenancy import system_session
 from app.services import analytics
+from app.services.backup import run_backup
 from app.services.quota import allocate_day
+from app.services.storage import get_backend
 from app.worker.celery_app import celery_app
 from app.worker.dispatcher import queue_depth, reclaim_expired_leases
 from app.worker.queues import Queue
@@ -69,3 +71,21 @@ def pull_daily_metrics(day_offset: int = -1) -> dict[str, int]:
         extra={"day": day.isoformat(), "workspaces": workspaces_swept, "snapshots": written_total},
     )
     return {"workspaces": workspaces_swept, "snapshots": written_total}
+
+
+@celery_app.task(name="maintenance.run_daily_backup", queue=Queue.MAINTENANCE.value)
+def run_daily_backup() -> dict[str, object]:
+    """Handoff section 7, week 9: daily Postgres + MinIO backup.
+
+    A failure here is loud, not swallowed — unlike the metrics sweep, there
+    is no "per workspace" to isolate a failure to, and a silently-failing
+    backup is worse than an alerting worker.
+    """
+    result = run_backup(backend=get_backend())
+    return {
+        "day": result.day.isoformat(),
+        "postgres_bytes": result.postgres_dump_bytes,
+        "objects_backed_up": result.objects_backed_up,
+        "objects_bytes": result.objects_bytes,
+        "pruned_days": result.pruned_days,
+    }

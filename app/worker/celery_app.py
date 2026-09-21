@@ -73,6 +73,14 @@ celery_app.conf.update(
             "schedule": crontab(hour="6", minute="0"),
             "options": {"queue": Queue.MAINTENANCE.value},
         },
+        # Handoff section 7, week 9. Before both quota allocation (0:05) and
+        # the metrics sweep (6:00) — a quiet window with nothing else on the
+        # maintenance queue yet.
+        "run-daily-backup": {
+            "task": "maintenance.run_daily_backup",
+            "schedule": crontab(hour="2", minute="30"),
+            "options": {"queue": Queue.MAINTENANCE.value},
+        },
     },
 )
 

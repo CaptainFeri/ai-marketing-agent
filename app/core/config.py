@@ -151,8 +151,15 @@ class Settings(BaseSettings):
 
     # ---- observability -------------------------------------------------
     langfuse_host: str | None = None
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
     log_level: str = "INFO"
     log_json: bool = True
+
+    # ---- backups (handoff section 7, week 9: daily Postgres + MinIO) ---
+    backup_dir: str = "./backups"
+    backup_retention_days: int = 14
+    pg_dump_binary: str = "pg_dump"
 
     @field_validator("supported_locales", mode="before")
     @classmethod

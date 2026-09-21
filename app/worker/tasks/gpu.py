@@ -6,8 +6,10 @@ import logging
 import os
 import socket
 import uuid
+from datetime import UTC, datetime, timedelta
 
 from app.agents.executor import execute_standalone_job, execute_step_job
+from app.agents.tracing import get_client as get_tracer
 from app.db.enums import GpuJobKind, GpuJobStatus
 from app.db.models import GpuJob
 from app.db.tenancy import system_session
@@ -151,6 +153,18 @@ def dispatch() -> dict:
                 locale=locale,
             )
         succeeded += 1
+
+        # Handoff section 4: "لاگ زمان GPU هر مرحله" — GPU time logged per
+        # step, for every job kind, not just LLM calls (those additionally
+        # get a token-level generation trace from app.agents.runner).
+        job_ended = datetime.now(UTC)
+        get_tracer().span(
+            trace_id=job_package or f"job-{job_id}",
+            name=f"gpu:{kind.value}",
+            started=job_ended - timedelta(seconds=gpu_seconds),
+            ended=job_ended,
+            metadata={"gpu_seconds": gpu_seconds, "tenant_id": job_tenant, "locale": locale},
+        )
 
         if job_package:
             if kind is GpuJobKind.LLM_TEXT:

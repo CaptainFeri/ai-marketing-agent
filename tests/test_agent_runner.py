@@ -16,6 +16,7 @@ from app.agents.prompts import LANGUAGE_NAMES, PROMPTS, budget, system_prompt, t
 from app.agents.registry import AgentOutputError
 from app.agents.runner import run_agent
 from app.agents.simulation import sample_for_schema_name, sample_output
+from app.agents.tracing import set_client as set_tracer
 from app.db.enums import PipelineStep
 
 
@@ -320,3 +321,88 @@ def test_the_simulator_reports_a_plausible_duration() -> None:
     """Zero seconds would leave the quota mechanism untested in a demo."""
     run = run_agent(PipelineStep.WRITER, context(), client())
     assert run.model_seconds > 0
+
+
+# ---------------------------------------------------------------------------
+# tracing
+# ---------------------------------------------------------------------------
+class _RecordingTracer:
+    def __init__(self) -> None:
+        self.traces: list[dict] = []
+        self.generations: list[dict] = []
+
+    def trace(self, **kwargs):
+        self.traces.append(kwargs)
+
+    def generation(self, **kwargs):
+        self.generations.append(kwargs)
+
+    def span(self, **kwargs):
+        pass
+
+
+@pytest.fixture(autouse=True)
+def _reset_tracer():
+    set_tracer(None)
+    yield
+    set_tracer(None)
+
+
+def test_a_clean_run_emits_one_trace_and_one_generation() -> None:
+    import uuid
+
+    tracer = _RecordingTracer()
+    set_tracer(tracer)
+    package_id = uuid.uuid4()
+    run_agent(PipelineStep.WRITER, context(package_id=package_id), client())
+
+    assert len(tracer.traces) == 1
+    assert tracer.traces[0]["trace_id"] == str(package_id)
+    assert len(tracer.generations) == 1
+    assert tracer.generations[0]["trace_id"] == str(package_id)
+    assert tracer.generations[0].get("level", "DEFAULT") == "DEFAULT"
+
+
+def test_a_rejected_attempt_still_gets_a_generation_marked_as_a_warning() -> None:
+    tracer = _RecordingTracer()
+    set_tracer(tracer)
+    run_agent(PipelineStep.WRITER, context(), client(fail_first=1))
+
+    assert len(tracer.generations) == 2
+    assert tracer.generations[0]["level"] == "WARNING"
+    assert tracer.generations[0]["status_message"]
+    assert tracer.generations[1].get("level", "DEFAULT") == "DEFAULT"
+
+
+def test_every_step_of_a_package_shares_one_trace_id() -> None:
+    import uuid
+
+    tracer = _RecordingTracer()
+    set_tracer(tracer)
+    package_id = uuid.uuid4()
+    run_agent(
+        PipelineStep.RESEARCHER, context(PipelineStep.RESEARCHER, package_id=package_id), client()
+    )
+    run_agent(PipelineStep.WRITER, context(PipelineStep.WRITER, package_id=package_id), client())
+
+    trace_ids = {call["trace_id"] for call in tracer.generations}
+    assert trace_ids == {str(package_id)}
+
+
+def test_a_run_with_no_package_still_gets_a_trace_of_its_own() -> None:
+    tracer = _RecordingTracer()
+    set_tracer(tracer)
+    run_agent(PipelineStep.BRIEF_ASSISTANT, context(PipelineStep.BRIEF_ASSISTANT), client())
+
+    assert len(tracer.traces) == 1
+    assert tracer.traces[0]["trace_id"]
+
+
+def test_an_unreachable_model_server_still_gets_traced_as_an_error() -> None:
+    tracer = _RecordingTracer()
+    set_tracer(tracer)
+    with pytest.raises(LlmError):
+        run_agent(PipelineStep.WRITER, context(), UnavailableLlmClient())
+
+    assert len(tracer.generations) == 1
+    assert tracer.generations[0]["level"] == "ERROR"
