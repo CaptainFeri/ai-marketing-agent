@@ -13,8 +13,8 @@ referenced throughout the code point at it.
 
 ## وضعیت فعلی / Current status
 
-This repository implements **phase 1, weeks 1–2** of the plan — the foundation
-everything else is built on:
+This repository implements **phase 1** of the plan end to end, backend and
+panel alike — the foundation everything else is built on:
 
 | Built | Where |
 |---|---|
@@ -31,8 +31,11 @@ everything else is built on:
 | Agent prompts, context assembly, the validate-and-retry runner, and re-run from any step | `app/agents/prompts.py`, `context.py`, `runner.py` |
 | Brand questionnaire wizard: ~25 questions, an SSRF-safe website reader, an async "guess it" assistant | `app/services/questionnaire.py`, `website.py`, `brief_draft.py` |
 | Image queue: marketizer-driven FLUX prompts, a **real** HTML/Chromium overlay renderer for Persian/Arabic text, a **real** Pillow compositor, **real** MinIO-compatible storage | `app/services/image_*.py`, `media_jobs.py`, `storage.py` |
+| Voice/video pipeline: real TTS assembly, real subtitle rendering and muxing | `app/services/tts_backend.py`, `subtitle_render.py`, `video_compose.py` |
 | **Real** WordPress and Telegram connectors — REST API / Bot API, encrypted credentials, a three-attempts-then-alert retry state machine | `app/connectors/`, `app/services/publishing.py`, `channel_credentials.py` |
+| **Real** Search Console and GA4 analytics — service-account auth, real metric pulls, nightly `published → measuring` transition | `app/connectors/search_console.py`, `ga4.py`, `app/services/analytics*.py` |
 | Hardware probe and automatic configuration, self-correcting from measured switch times | `app/core/platform.py`, `app/services/tuning.py` |
+| **The Next.js panel** — login, workspace list, the questionnaire wizard, package detail with both human gates and media selection, channel credentials, quota, analytics; RTL/LTR and fa/en/ar throughout, types generated from the FastAPI OpenAPI schema | `panel/src/app/`, see [`docs/panel.md`](docs/panel.md) |
 
 **Not built yet**, and deliberately so:
 
@@ -42,18 +45,16 @@ everything else is built on:
   runs the whole platform end to end without weights present, with plausible
   timings, so everything above is exercisable today. Setting any other value
   currently fails loudly rather than producing placeholder content.
-- **Any article or image produced by a real model.** The text chain and the
-  image queue both run end to end against simulated backends; whether Qwen3
-  and FLUX.1-schnell clear phase 0's bar is the open question that measuring
-  them on the real card answers.
-- **The wizard's frontend, and every panel screen generally.** The APIs and
-  their logic are done (see [`docs/questionnaire.md`](docs/questionnaire.md),
-  [`docs/publishing.md`](docs/publishing.md)); the Next.js panel that
-  renders them is still to come.
+- **Any article, image or voice clip produced by a real model.** The text
+  chain, the image queue and the voice/video pipeline all run end to end
+  against simulated backends; whether Qwen3, FLUX.1-schnell and the chosen
+  TTS models clear phase 0's bar is the open question that measuring them on
+  the real card answers.
 - **hreflang via WPML/Polylang**, and Instagram/LinkedIn/X/YouTube/Aparat
-  connectors — phase 2/3 per the handoff's own channel table.
-- **Channel connectors** — WordPress and Telegram are phase 1 weeks 7–8.
-- **The Next.js panel.**
+  connectors, the drag-and-drop calendar, and self-service tenant
+  onboarding — phase 2/3 per the handoff's own channel table.
+- **`face` video mode** (SadTalker/LatentSync lip-sync) — phase 3, gated on a
+  written consent flow that doesn't exist yet either.
 
 ---
 
@@ -152,7 +153,10 @@ Further reading:
 - [`docs/agents.md`](docs/agents.md) — prompts, context, retries and re-runs
 - [`docs/questionnaire.md`](docs/questionnaire.md) — the wizard, the "guess it" assistant, and the SSRF guard
 - [`docs/image-queue.md`](docs/image-queue.md) — visual briefs, the real overlay renderer, storage, and gate 2's selection requirement
+- [`docs/voice-video.md`](docs/voice-video.md) — the voice mode video pipeline: narration, captions and muxing
 - [`docs/publishing.md`](docs/publishing.md) — the WordPress and Telegram connectors, credentials, and the retry/alert state machine
+- [`docs/analytics.md`](docs/analytics.md) — Search Console and GA4 credentials and metric pulls
+- [`docs/panel.md`](docs/panel.md) — the Next.js panel: screens, auth, generated types, RTL/LTR
 - [`docs/platform-tuning.md`](docs/platform-tuning.md) — hardware probing and automatic configuration
 - [`docs/gpu-scheduling.md`](docs/gpu-scheduling.md) — the scheduler and the quota mechanism in detail
 - [`docs/deployment.md`](docs/deployment.md) — database roles, secrets, backups
@@ -184,6 +188,7 @@ make test-cov      # with coverage
 make revision m="add publication retry columns"
 ```
 
-526 tests today, 92% line coverage. Anything touching tenant scoping, the scheduler or the quota
-ledger should arrive with tests — those three are where a quiet bug is most
-expensive.
+600 tests today (231 of them need the real PostgreSQL `make db-up` provides
+and skip without it — RLS has no in-memory substitute). Anything touching
+tenant scoping, the scheduler or the quota ledger should arrive with tests —
+those three are where a quiet bug is most expensive.
