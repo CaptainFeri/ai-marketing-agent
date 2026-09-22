@@ -25,3 +25,6 @@ dump.rdb
 # regenerated, never committed.
 /models/
 /backups/
+
+# the project pins deps via pyproject.toml ranges, not a uv lockfile
+uv.lock
