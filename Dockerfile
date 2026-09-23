@@ -17,6 +17,15 @@ ENV PYTHONUNBUFFERED=1 \
 # playwright install --with-deps below, which shells out to apt-get itself).
 RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
+# deb.debian.org (Fastly-fronted) has been seen stalling for ~30s at a time
+# from some hosts before recovering — not blocked, just congested for a
+# window. A single apt-get attempt gives up after 3 quick tries, well short
+# of that window; make it actually retry with real timeouts instead of
+# requiring a manual re-run of the whole build.
+RUN echo 'Acquire::Retries "8";' > /etc/apt/apt.conf.d/99retries \
+ && echo 'Acquire::http::Timeout "30";' >> /etc/apt/apt.conf.d/99retries \
+ && echo 'Acquire::https::Timeout "30";' >> /etc/apt/apt.conf.d/99retries
+
 # ffmpeg is needed by the media_cpu worker for muxing (handoff section 8).
 # espeak-ng is the default TTS backend (app/services/tts_backend.py) — real,
 # offline narration with no model download, standing in for Piper/Chatterbox
