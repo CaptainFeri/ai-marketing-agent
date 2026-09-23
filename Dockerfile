@@ -33,6 +33,7 @@ WORKDIR /srv/app
 
 COPY pyproject.toml ./
 COPY app ./app
+COPY scripts ./scripts
 RUN pip install --no-cache-dir .
 
 # One Chromium, shared by every worker that renders an overlay. Installed to
@@ -47,24 +48,19 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
 # these, on every host.
 RUN python -m playwright install-deps chromium
 
-# The Chromium *binary* itself is a different story: Playwright fetches it
-# from a hard-coded cdn.playwright.dev URL with no mirror override (unlike
-# every other asset in this Dockerfile), and that CDN 403s "not available
-# in your location" from some hosts (handoff section 13's access-from-Iran
-# risk, hit for real in phase 0). SKIP_CHROMIUM_DOWNLOAD=true skips this
-# fetch; scripts/download-chromium.ps1 fetches the identical build (same
-# pinned playwright version, see pyproject.toml) on an unrestricted machine
-# instead, for PW_BROWSERS_DIR (docker-compose.yml) to mount at
-# /opt/pw-browsers in its place. Default is false: everywhere the CDN isn't
-# blocked, this Just Works with no extra step.
-ARG SKIP_CHROMIUM_DOWNLOAD=false
-RUN mkdir -p /opt/pw-browsers \
- && if [ "$SKIP_CHROMIUM_DOWNLOAD" != "true" ]; then python -m playwright install chromium; fi \
+# The Chromium *binary* itself is fetched by scripts/install_chromium.py,
+# not `playwright install chromium` — that hard-codes a cdn.playwright.dev
+# URL with no override (unlike every other asset in this Dockerfile), and
+# both it and storage.googleapis.com (the *other* official home of the same
+# build) were confirmed 403ing "not available in your location" from real
+# hardware in phase 0 (handoff section 13's access-from-Iran risk). The
+# script's own docstring has the full story and the fallback if its mirror
+# ever needs to change too.
+RUN python scripts/install_chromium.py \
  && chmod -R a+rX /opt/pw-browsers
 
 COPY alembic.ini ./
 COPY migrations ./migrations
-COPY scripts ./scripts
 
 # Never run as root: a compromised connector should not own the container.
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser /srv/app

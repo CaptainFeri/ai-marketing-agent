@@ -131,31 +131,23 @@ customer has to reconnect every channel.
   `GPU_NIGHT_WINDOW_START_HOUR` / `..._END_HOUR` to match the pilot customers'
   actual quiet hours.
 
-## If cdn.playwright.dev is blocked
+## Chromium and cdn.playwright.dev
 
-Seen for real in phase 0: the Dockerfile's `playwright install chromium`
-step (needed for `app/services/image_overlay.py`'s Persian/Arabic text
-rendering) can 403 with "not available in your location" — Playwright
-hard-codes that one URL for Chromium specifically, with no mirror override
-(unlike every other download in this project, which does have one).
+Seen for real in phase 0: `playwright install chromium` (needed for
+`app/services/image_overlay.py`'s Persian/Arabic text rendering) 403s with
+"not available in your location" from some hosts, and so does
+`storage.googleapis.com` — the *other* official home of the same Chrome for
+Testing build. Both are hard-coded into Playwright's own installer with no
+mirror override (unlike every other download in this project, which does
+have one).
 
-1. On a machine with unrestricted internet — your own Linux/Mac box, or a
-   free [GitHub Codespace](https://github.com/features/codespaces) opened
-   on this repo if you'd rather not use your own machine at all — run
-   `scripts/download-chromium.sh` (or `download-chromium.ps1` on Windows).
-   Either installs the exact `playwright==` version pinned in
-   `pyproject.toml` and downloads only Chromium into `./pw-browsers`.
-2. Copy that folder onto the GPU host; make sure it's world-readable
-   (`chmod -R a+rX`) since the container runs as an unprivileged user.
-3. In `.env`: set `SKIP_CHROMIUM_DOWNLOAD=true` and
-   `PW_BROWSERS_DIR=/path/to/the/copied/folder`.
-4. `cp docker-compose.override.yml.example docker-compose.override.yml` —
-   this is what actually mounts the copied folder over `/opt/pw-browsers`
-   for `gpu-worker` (the service that calls the overlay renderer). It's a
-   separate opt-in file rather than a line in `docker-compose.yml` itself,
-   because an unconditional mount there would shadow the image's own
-   baked-in browser for every host the block doesn't apply to.
-5. `docker compose build` (picks up the build arg) then `docker compose up -d`.
+The Dockerfile doesn't call Playwright's installer for the browser binary at
+all — `scripts/install_chromium.py` fetches it from npmmirror.com (Alibaba
+Cloud, confirmed reachable where the other two weren't) instead, reading the
+exact revision straight out of Playwright's own installed `browsers.json` so
+it can never drift from what's pinned in `pyproject.toml`. This needs no
+configuration and no separate machine — if npmmirror.com ever needs to
+change too, that script's own docstring has the fallback.
 
 ## Upgrades
 
