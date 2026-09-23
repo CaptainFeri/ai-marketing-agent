@@ -1,9 +1,21 @@
 # Single image for the API and every worker; the command decides the role.
-FROM python:3.11-slim AS base
+#
+# Pinned to bookworm, not the floating "slim" tag: Playwright's own
+# `--with-deps` (below) hard-codes a package list per Debian release, and
+# lags behind whatever release "slim" currently resolves to (it broke
+# against trixie — package names like libatk-bridge2.0-0t64 that trixie
+# doesn't have). bookworm is a release Playwright has supported for a while.
+FROM python:3.11-slim-bookworm AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
+
+# Some Docker hosts advertise IPv6 routes for package mirrors that are
+# actually black-holed, so apt hangs on IPv6 until it times out before ever
+# trying IPv4. Force IPv4 for apt everywhere in this image (this also covers
+# playwright install --with-deps below, which shells out to apt-get itself).
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 
 # ffmpeg is needed by the media_cpu worker for muxing (handoff section 8).
 # espeak-ng is the default TTS backend (app/services/tts_backend.py) — real,
