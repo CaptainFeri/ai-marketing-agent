@@ -58,7 +58,13 @@ services:
     restart: unless-stopped
 
   api:
-    build: .
+    build:
+      context: .
+      # See gpu-worker below re: SKIP_CHROMIUM_DOWNLOAD — every service
+      # shares this Dockerfile, so a blocked cdn.playwright.dev fails any
+      # of their builds unless they all pass the same arg.
+      args:
+        SKIP_CHROMIUM_DOWNLOAD: "${SKIP_CHROMIUM_DOWNLOAD:-false}"
     env_file: .env
     depends_on:
       postgres: {condition: service_healthy}
@@ -69,8 +75,20 @@ services:
 
   # The single owner of the GPU. concurrency=1 is not a tuning knob: two
   # processes on one 24 GB card means an out-of-memory error, not throughput.
+  # It's also the service that actually calls the Chromium overlay renderer
+  # (execute_image_job, app/worker/tasks/gpu.py) — relevant if
+  # SKIP_CHROMIUM_DOWNLOAD below is ever set (see docker-compose.override.yml.example).
   gpu-worker:
-    build: .
+    build:
+      context: .
+      # cdn.playwright.dev 403s "not available in your location" from some
+      # hosts (Dockerfile has the detail). Set SKIP_CHROMIUM_DOWNLOAD=true in
+      # .env once you've run scripts/download-chromium.ps1 elsewhere and
+      # copy docker-compose.override.yml.example to mount the result here —
+      # a bind mount at /opt/pw-browsers would otherwise shadow the image's
+      # own baked-in browser, so it isn't wired up by default.
+      args:
+        SKIP_CHROMIUM_DOWNLOAD: "${SKIP_CHROMIUM_DOWNLOAD:-false}"
     # check_models.py only reports what is already on disk under
     # MODELS_DIR — it never fetches anything itself. Fetching is a
     # separate, manual step (scripts/download-models.ps1, run elsewhere,
@@ -96,7 +114,11 @@ services:
     #           capabilities: [gpu]
 
   cpu-worker:
-    build: .
+    build:
+      context: .
+      # Same shared Dockerfile as api/gpu-worker — see gpu-worker above.
+      args:
+        SKIP_CHROMIUM_DOWNLOAD: "${SKIP_CHROMIUM_DOWNLOAD:-false}"
     command: >
       celery -A app.worker.celery_app worker
       --queues pipeline,publish,maintenance,media_cpu
@@ -108,7 +130,11 @@ services:
     restart: unless-stopped
 
   beat:
-    build: .
+    build:
+      context: .
+      # Same shared Dockerfile as api/gpu-worker — see gpu-worker above.
+      args:
+        SKIP_CHROMIUM_DOWNLOAD: "${SKIP_CHROMIUM_DOWNLOAD:-false}"
     command: celery -A app.worker.celery_app beat --loglevel INFO
     env_file: .env
     depends_on:

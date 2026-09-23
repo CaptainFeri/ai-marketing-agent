@@ -131,6 +131,30 @@ customer has to reconnect every channel.
   `GPU_NIGHT_WINDOW_START_HOUR` / `..._END_HOUR` to match the pilot customers'
   actual quiet hours.
 
+## If cdn.playwright.dev is blocked
+
+Seen for real in phase 0: the Dockerfile's `playwright install chromium`
+step (needed for `app/services/image_overlay.py`'s Persian/Arabic text
+rendering) can 403 with "not available in your location" — Playwright
+hard-codes that one URL for Chromium specifically, with no mirror override
+(unlike every other download in this project, which does have one).
+
+1. On a machine with unrestricted internet, run
+   `scripts/download-chromium.ps1` (pwsh works on Linux/Mac too, not just
+   Windows). It installs the exact `playwright==` version pinned in
+   `pyproject.toml` and downloads only Chromium into `.\pw-browsers`.
+2. Copy that folder onto the GPU host; make sure it's world-readable
+   (`chmod -R a+rX`) since the container runs as an unprivileged user.
+3. In `.env`: set `SKIP_CHROMIUM_DOWNLOAD=true` and
+   `PW_BROWSERS_DIR=/path/to/the/copied/folder`.
+4. `cp docker-compose.override.yml.example docker-compose.override.yml` —
+   this is what actually mounts the copied folder over `/opt/pw-browsers`
+   for `gpu-worker` (the service that calls the overlay renderer). It's a
+   separate opt-in file rather than a line in `docker-compose.yml` itself,
+   because an unconditional mount there would shadow the image's own
+   baked-in browser for every host the block doesn't apply to.
+5. `docker compose build` (picks up the build arg) then `docker compose up -d`.
+
 ## Upgrades
 
 ```bash

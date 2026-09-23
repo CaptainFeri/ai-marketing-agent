@@ -41,14 +41,25 @@ RUN pip install --no-cache-dir .
 # its own bundled build here rather than needing an explicit override (that
 # setting exists for dev sandboxes with a browser at a nonstandard path).
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
-# cdn.playwright.dev 403s "not available in your location" from some hosts
-# (handoff section 13's access-from-Iran risk, hit for real in phase 0) — a
-# mirror with the same layout is the standard workaround. Override at build
-# time (--build-arg PLAYWRIGHT_DOWNLOAD_HOST=...) if this one is ever
-# unreachable too.
-ARG PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
-ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
-RUN python -m playwright install --with-deps chromium \
+
+# The OS packages Chromium needs (Playwright's own dependency list) come
+# from the Debian mirror already proven reachable above — always install
+# these, on every host.
+RUN python -m playwright install-deps chromium
+
+# The Chromium *binary* itself is a different story: Playwright fetches it
+# from a hard-coded cdn.playwright.dev URL with no mirror override (unlike
+# every other asset in this Dockerfile), and that CDN 403s "not available
+# in your location" from some hosts (handoff section 13's access-from-Iran
+# risk, hit for real in phase 0). SKIP_CHROMIUM_DOWNLOAD=true skips this
+# fetch; scripts/download-chromium.ps1 fetches the identical build (same
+# pinned playwright version, see pyproject.toml) on an unrestricted machine
+# instead, for PW_BROWSERS_DIR (docker-compose.yml) to mount at
+# /opt/pw-browsers in its place. Default is false: everywhere the CDN isn't
+# blocked, this Just Works with no extra step.
+ARG SKIP_CHROMIUM_DOWNLOAD=false
+RUN mkdir -p /opt/pw-browsers \
+ && if [ "$SKIP_CHROMIUM_DOWNLOAD" != "true" ]; then python -m playwright install chromium; fi \
  && chmod -R a+rX /opt/pw-browsers
 
 COPY alembic.ini ./
