@@ -139,10 +139,12 @@ rendering) can 403 with "not available in your location" — Playwright
 hard-codes that one URL for Chromium specifically, with no mirror override
 (unlike every other download in this project, which does have one).
 
-1. On a machine with unrestricted internet, run
-   `scripts/download-chromium.ps1` (pwsh works on Linux/Mac too, not just
-   Windows). It installs the exact `playwright==` version pinned in
-   `pyproject.toml` and downloads only Chromium into `.\pw-browsers`.
+1. On a machine with unrestricted internet — your own Linux/Mac box, or a
+   free [GitHub Codespace](https://github.com/features/codespaces) opened
+   on this repo if you'd rather not use your own machine at all — run
+   `scripts/download-chromium.sh` (or `download-chromium.ps1` on Windows).
+   Either installs the exact `playwright==` version pinned in
+   `pyproject.toml` and downloads only Chromium into `./pw-browsers`.
 2. Copy that folder onto the GPU host; make sure it's world-readable
    (`chmod -R a+rX`) since the container runs as an unprivileged user.
 3. In `.env`: set `SKIP_CHROMIUM_DOWNLOAD=true` and
