@@ -79,6 +79,16 @@ services:
     command: >
       sh -c "python scripts/check_models.py && celery -A app.worker.celery_app worker
       --queues gpu --concurrency 1 --loglevel INFO --hostname gpu@%h"
+    # Overrides the Dockerfile's HEALTHCHECK, which curls port 8000 — right
+    # for api, meaningless here (this is a celery worker, not a web
+    # server). -d targets this exact container's own worker, matching
+    # --hostname above, not just any worker reachable over the broker.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker.celery_app inspect ping -d gpu@$$(hostname) --timeout 10"]
+      interval: 30s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
     env_file: .env
     volumes:
       - ${MODELS_DIR:-./models}:/srv/app/models:ro
@@ -101,6 +111,13 @@ services:
       celery -A app.worker.celery_app worker
       --queues pipeline,publish,maintenance,media_cpu
       --concurrency 4 --loglevel INFO --hostname cpu@%h
+    # See gpu-worker above re: overriding the Dockerfile's HEALTHCHECK.
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.worker.celery_app inspect ping -d cpu@$$(hostname) --timeout 10"]
+      interval: 30s
+      timeout: 15s
+      start_period: 30s
+      retries: 3
     env_file: .env
     depends_on:
       postgres: {condition: service_healthy}
@@ -110,6 +127,13 @@ services:
   beat:
     build: .
     command: celery -A app.worker.celery_app beat --loglevel INFO
+    # celery beat isn't a worker and won't answer inspect ping, and the
+    # Dockerfile's HEALTHCHECK (curl port 8000) doesn't apply here either —
+    # there's nothing meaningful to probe. restart: unless-stopped already
+    # recovers a beat that exits; Docker just won't call it "unhealthy"
+    # while it's running.
+    healthcheck:
+      disable: true
     env_file: .env
     depends_on:
       redis: {condition: service_healthy}
