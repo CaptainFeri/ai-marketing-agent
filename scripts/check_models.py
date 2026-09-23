@@ -70,7 +70,7 @@ def main(argv: list[str] | None = None, env: dict | None = None) -> int:
         present = _has_any_files(models_dir / category)
         marker = "present" if present else "missing"
         print(f"  [{marker:7}] {category:10} - {description}")
-        if not present and _BLOCKING.get(category, lambda _env: False)(env):
+        if not present and _BLOCKING.get(category, lambda _env: False)(resolved_env):
             blocking_missing.append(category)
 
     if blocking_missing:

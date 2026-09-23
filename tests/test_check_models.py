@@ -82,6 +82,18 @@ def test_other_real_backends_never_block_startup(tmp_path) -> None:
     assert code == 0
 
 
+def test_default_env_falls_back_to_os_environ(tmp_path, monkeypatch) -> None:
+    """Every other test passes env= explicitly; none of them would have
+    caught a regression in the env=None path main() actually runs under
+    when invoked for real (sys.exit(main()), as docker-compose.yml's
+    gpu-worker command does) - which is exactly what broke: line 73 read
+    the raw env=None parameter instead of the resolved_env built from
+    os.environ two lines above it."""
+    monkeypatch.delenv("TTS_BACKEND", raising=False)
+    code = check_models.main(["--models-dir", str(tmp_path)])
+    assert code == 0
+
+
 def test_models_dir_falls_back_to_the_env_var(tmp_path, monkeypatch) -> None:
     tts_dir = tmp_path / "tts"
     tts_dir.mkdir()
