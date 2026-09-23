@@ -134,7 +134,7 @@ class Settings(BaseSettings):
     # contract-valid output and no weights, which is what phase 0/1 use.
     llm_client: str = "simulated"
     llm_base_url: str = "http://localhost:8001"
-    llm_model: str = "Qwen/Qwen3-30B-A3B"
+    llm_model: str = "Qwen/Qwen3-30B-A3B-Instruct-2507"
     llm_timeout_seconds: float = 600.0
     # How vLLM is asked to constrain generation. Recent builds take the
     # OpenAI-style "response_format"; older ones want "guided_json". Getting
