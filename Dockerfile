@@ -41,6 +41,13 @@ RUN pip install --no-cache-dir .
 # its own bundled build here rather than needing an explicit override (that
 # setting exists for dev sandboxes with a browser at a nonstandard path).
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers
+# cdn.playwright.dev 403s "not available in your location" from some hosts
+# (handoff section 13's access-from-Iran risk, hit for real in phase 0) — a
+# mirror with the same layout is the standard workaround. Override at build
+# time (--build-arg PLAYWRIGHT_DOWNLOAD_HOST=...) if this one is ever
+# unreachable too.
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 RUN python -m playwright install --with-deps chromium \
  && chmod -R a+rX /opt/pw-browsers
 
