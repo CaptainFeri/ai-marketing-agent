@@ -21,9 +21,14 @@ the runtime with real adapters as each model is validated.
 
 ## Infrastructure
 
-- [ ] NVIDIA driver, CUDA and Docker on the server
-- [ ] `docker compose up -d postgres redis minio` and `alembic upgrade head`
-- [ ] Confirm `pgvector` is present (the compose image has it)
+- [x] NVIDIA driver, CUDA and Docker on the server — RTX 3090 (not the 3090
+      Ti decision D9 names; same 24GB VRAM, planning-irrelevant), driver 595,
+      CUDA 13.2, NVIDIA Container Toolkit confirmed with `--gpus all`
+- [x] `docker compose up -d postgres redis minio` and `alembic upgrade head`
+      — all migrations through `0009_workspace_spacing` applied; every
+      service (`api`, `gpu-worker`, `cpu-worker`, `beat`, plus `postgres`,
+      `redis`, `minio`) reports healthy
+- [x] Confirm `pgvector` is present (the compose image has it)
 - [x] Record the server's actual RAM, CPU and disk — run `make analyze` on the
       box. It probes them and derives the configuration; section 12's open
       question is answered by its output.
