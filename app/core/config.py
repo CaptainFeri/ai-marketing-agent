@@ -9,10 +9,10 @@ phase 1 and later.
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, PostgresDsn, RedisDsn, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Obvious placeholder: long enough for HMAC-SHA256 but refused outside local/test.
 DEV_SECRET_KEY = "insecure-development-secret-key-do-not-use-in-production"
@@ -146,7 +146,11 @@ class Settings(BaseSettings):
 
     # ---- pipeline ------------------------------------------------------
     qa_max_retries: int = 2
-    supported_locales: list[str] = ["fa", "en", "ar"]
+    # NoDecode: pydantic-settings otherwise tries to json.loads() any env
+    # value bound to a list field before _split_locales below ever runs,
+    # which is exactly wrong for the comma-separated format .env.example
+    # documents (SUPPORTED_LOCALES=fa,en,ar) and that validator expects.
+    supported_locales: Annotated[list[str], NoDecode] = ["fa", "en", "ar"]
     default_locale: str = "fa"
 
     # ---- observability -------------------------------------------------
