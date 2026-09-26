@@ -31,6 +31,20 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
     project_name: str = "AI Marketing Agent"
+    # Origin(s) the panel is actually served from, comma-separated
+    # (CORS_ALLOWED_ORIGINS=http://203.0.113.5:3000). Empty means "use the
+    # environment's own default" (app/main.py): localhost:3000 for local,
+    # nothing for anything else — a production deployment whose panel
+    # lives elsewhere must set this explicitly rather than the API silently
+    # accepting an origin nobody configured.
+    cors_allowed_origins: Annotated[list[str], NoDecode] = Field(default_factory=list)
+
+    @field_validator("cors_allowed_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     # ---- database ------------------------------------------------------
     # ``database_url`` is the *tenant-scoped* connection.  The role behind it

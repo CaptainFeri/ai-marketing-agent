@@ -67,6 +67,24 @@ services:
       - "127.0.0.1:8000:8000"
     restart: unless-stopped
 
+  # Pure client of api (docs/panel.md) — no database or queue access of its
+  # own. PANEL_API_URL must be wherever the *browser* can reach api, not
+  # Docker's internal network (e.g. http://<server-ip>:8000) — Next.js
+  # inlines it into the client bundle at build time, so it has to be a
+  # build arg here, not a plain runtime env var. Set CORS_ALLOWED_ORIGINS
+  # in api's own .env to this same panel origin (app/core/config.py) or api
+  # will reject every request the browser sends it.
+  panel:
+    build:
+      context: ./panel
+      args:
+        NEXT_PUBLIC_API_URL: ${PANEL_API_URL:-http://localhost:8000}
+    depends_on:
+      - api
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+
   # The single owner of the GPU. concurrency=1 is not a tuning knob: two
   # processes on one 24 GB card means an out-of-memory error, not throughput.
   gpu-worker:

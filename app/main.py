@@ -40,10 +40,14 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
-    # The Next.js panel is served from a separate origin in development.
+    # The Next.js panel is served from a separate origin. CORS_ALLOWED_ORIGINS
+    # (app/core/config.py) lets an operator name where it actually is; unset,
+    # local dev still gets its usual localhost:3000 and everything else
+    # stays closed rather than guessing at an origin nobody configured.
+    default_origins = ["http://localhost:3000"] if settings.environment == "local" else []
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000"] if settings.environment == "local" else [],
+        allow_origins=settings.cors_allowed_origins or default_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

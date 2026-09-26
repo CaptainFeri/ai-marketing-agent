@@ -112,6 +112,29 @@ The backend must be reachable at `NEXT_PUBLIC_API_URL` (defaults to
 ever reaches the API. `next.config.ts` also allowlists both hosts for the
 dev server's own HMR socket.
 
+## Deploying with Docker
+
+`docker compose up -d` (from the repo root) builds and runs `panel`
+alongside every other service — `panel/Dockerfile` is a multi-stage build
+using `output: "standalone"` (`next.config.ts`), so the final image ships
+only the traced files `server.js` needs, not the full `node_modules` tree.
+
+Two things need to point at wherever the panel is *actually* reachable from
+a browser, which on a single-server deployment is the host's own address,
+not anything Docker-internal:
+
+- `PANEL_API_URL` (`.env`, read by `docker-compose.yml`'s `panel` service as
+  a **build arg**) — Next.js inlines `NEXT_PUBLIC_*` variables into the
+  client bundle at build time, so this can't be a plain runtime env var the
+  way every other setting in `.env` is; changing it means rebuilding the
+  `panel` image (`docker compose build panel`), not just restarting it.
+- `CORS_ALLOWED_ORIGINS` (`.env`, read by `api` at runtime,
+  `app/core/config.py`) — set to the panel's own origin (e.g.
+  `http://203.0.113.5:3000`). Unset, `api` only accepts `localhost:3000`
+  in `ENVIRONMENT=local` and nothing at all otherwise — a production
+  deployment that skips this gets every panel request rejected by CORS,
+  silently, with no visible error on the `api` side.
+
 Verified end to end against the real FastAPI service and a real Postgres
 database in this sandbox: login, RTL default with a live switch to LTR, the
 questionnaire wizard reading the live catalogue and saving answers, package
