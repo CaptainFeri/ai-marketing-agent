@@ -4,11 +4,14 @@ Two weeks. The goal is to prove the model quality is acceptable in all three
 languages and that a 3090 Ti carries the load, *before* more product is built
 on top. Handoff section 11.
 
-`scripts/download-models.ps1` fetches every model referenced below from
-Hugging Face into a local `.\models` folder, to copy onto the GPU host
-separately (useful when the box that will run the models has no direct
-internet access). See the script's own `Get-Help .\download-models.ps1 -Full`
-for the option list (LLM variant, skipping video/lip-sync, which Piper voice).
+`scripts/download-models.ps1` (or `scripts/download_models.py`, identical
+behavior, for anyone who'd rather not install PowerShell) fetches every model
+referenced below from Hugging Face into a local `./models` folder, to copy
+onto the GPU host separately (useful when the box that will run the models
+has no direct internet access, or when cdn.playwright.dev-style geo-blocks
+apply — see `docs/deployment.md`). See `Get-Help .\download-models.ps1 -Full`
+or `python scripts/download_models.py --help` for the option list (LLM
+variant, skipping video/lip-sync, which Piper voice).
 
 Once copied onto the GPU host, `python scripts/check_models.py` reports
 which of those weights are actually present under `MODELS_DIR` — it never

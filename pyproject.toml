@@ -34,6 +34,10 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    # Only used by scripts/download_models.py (run on a separate machine,
+    # never by the app itself) — a dev dependency purely so its tests can
+    # import and mock it.
+    "huggingface_hub>=0.24",
 ]
 
 [build-system]
